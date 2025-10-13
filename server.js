@@ -2,12 +2,16 @@
 const cors = require('cors');
 const helmet = require('helmet');
 require('dotenv').config();
+const setupSwagger = require('./config/swagger');
 
 const db = require('./models');
 const routes = require('./routes');
 const errorHandler = require('./middlewares/error');
 
 const app = express();
+
+setupSwagger(app);
+
 
 app.use(helmet());
 
@@ -48,6 +52,7 @@ db.sequelize.authenticate()
       console.log(`Servidor corriendo en puerto ${PORT}`);
       console.log(`Entorno: ${process.env.NODE_ENV || 'development'}`);
       console.log(`URL: http://localhost:${PORT}`);
+      console.log(`Documentación Swagger disponible en http://localhost:${PORT}/api-docs`);
     });
   })
   .catch(err => {

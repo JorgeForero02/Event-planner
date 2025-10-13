@@ -17,5 +17,6 @@ router.use('/asistencias', require('./asistencia.routes'));
 router.use('/tipos-notificacion', require('./tiponotificacion.routes'));
 router.use('/notificaciones', require('./notificacion.routes'));
 router.use('/auditorias', require('./auditoria.routes'));
+router.use('/auth', require('./auth.routes'));
 
 module.exports = router;

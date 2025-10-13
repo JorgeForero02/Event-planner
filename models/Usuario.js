@@ -35,6 +35,7 @@ const Usuario = sequelize.define('Usuario', {
 }, {
   tableName: 'Usuario',
   timestamps: false
+  // NO incluir hooks aquí
 });
 
 module.exports = Usuario;
