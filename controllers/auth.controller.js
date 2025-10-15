@@ -92,6 +92,96 @@ const determinarRol = async (usuarioId) => {
     };
 };
 
+// REGISTRO PÚBLICO - Solo Asistente y Ponente
+const register = async (req, res) => {
+    try {
+        const { nombre, cedula, telefono, correo, contraseña, rol, especialidad } = req.body;
+
+        if (!nombre || !cedula || !correo || !contraseña) {
+            return res.status(400).json({
+                success: false,
+                message: 'Todos los campos obligatorios deben ser proporcionados'
+            });
+        }
+
+        // Solo se permite registro de asistente y ponente
+        const rolesPermitidos = ['asistente', 'ponente'];
+        const rolFinal = rol || 'asistente'; // Por defecto asistente
+
+        if (!rolesPermitidos.includes(rolFinal)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Solo puede registrarse como asistente o ponente. Para otros roles contacte con un administrador.'
+            });
+        }
+
+        const usuarioExistente = await Usuario.findOne({
+            where: { correo }
+        });
+
+        if (usuarioExistente) {
+            return res.status(400).json({
+                success: false,
+                message: 'El correo ya está registrado'
+            });
+        }
+
+        const cedulaExistente = await Usuario.findOne({
+            where: { cedula }
+        });
+
+        if (cedulaExistente) {
+            return res.status(400).json({
+                success: false,
+                message: 'La cédula ya está registrada'
+            });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const contraseñaHash = await bcrypt.hash(contraseña, salt);
+
+        const nuevoUsuario = await Usuario.create({
+            nombre,
+            cedula,
+            telefono,
+            correo,
+            contraseña: contraseñaHash
+        });
+
+        let rolCreado = null;
+
+        if (rolFinal === 'ponente') {
+            rolCreado = await Ponente.create({
+                id_usuario: nuevoUsuario.id,
+                especialidad: especialidad || null
+            });
+        } else {
+            rolCreado = await Asistente.create({
+                id_usuario: nuevoUsuario.id
+            });
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `Usuario registrado exitosamente como ${rolFinal}`,
+            data: {
+                id: nuevoUsuario.id,
+                nombre: nuevoUsuario.nombre,
+                correo: nuevoUsuario.correo,
+                rol: rolFinal
+            }
+        });
+
+    } catch (error) {
+        console.error('Error en registro:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error en el servidor',
+            error: error.message
+        });
+    }
+};
+
 const login = async (req, res) => {
     try {
         const { correo, contraseña } = req.body;
@@ -172,29 +262,113 @@ const login = async (req, res) => {
     }
 };
 
-const register = async (req, res) => {
+// PROMOVER ASISTENTE A GERENTE (Solo Administrador del Sistema)
+const promoverAGerente = async (req, res) => {
     try {
-        const { nombre, cedula, telefono, correo, contraseña, rol, id_empresa, es_Gerente, especialidad } = req.body;
+        const { id_usuario, id_empresa } = req.body;
 
-        if (!nombre || !cedula || !correo || !contraseña || !rol) {
+        if (!id_usuario || !id_empresa) {
             return res.status(400).json({
                 success: false,
-                message: 'Todos los campos obligatorios deben ser proporcionados'
+                message: 'Se requiere id_usuario e id_empresa'
             });
         }
 
-        const rolesValidos = ['administrador', 'gerente', 'organizador', 'ponente', 'asistente'];
-        if (!rolesValidos.includes(rol)) {
-            return res.status(400).json({
+        // Verificar que el usuario existe
+        const usuario = await Usuario.findByPk(id_usuario);
+        if (!usuario) {
+            return res.status(404).json({
                 success: false,
-                message: `Rol inválido. Roles permitidos: ${rolesValidos.join(', ')}`
+                message: 'Usuario no encontrado'
             });
         }
 
-        if ((rol === 'gerente' || rol === 'organizador') && !id_empresa) {
+        // Verificar que es asistente
+        const asistente = await Asistente.findOne({
+            where: { id_usuario }
+        });
+
+        if (!asistente) {
             return res.status(400).json({
                 success: false,
-                message: 'El campo id_empresa es obligatorio para gerentes y organizadores'
+                message: 'El usuario no es un asistente. Solo se puede promover asistentes a gerente.'
+            });
+        }
+
+        // Verificar que la empresa existe
+        const empresa = await Empresa.findByPk(id_empresa);
+        if (!empresa) {
+            return res.status(404).json({
+                success: false,
+                message: 'Empresa no encontrada'
+            });
+        }
+
+        // Eliminar el rol de asistente
+        await Asistente.destroy({
+            where: { id_usuario }
+        });
+
+        // Crear el rol de gerente (es_Gerente = 1)
+        const nuevoGerente = await AdministradorEmpresa.create({
+            id_usuario,
+            id_empresa,
+            es_Gerente: 1
+        });
+
+        res.json({
+            success: true,
+            message: `Usuario ${usuario.nombre} promovido a gerente de ${empresa.nombre}`,
+            data: {
+                id_usuario: usuario.id,
+                nombre: usuario.nombre,
+                rol_anterior: 'asistente',
+                rol_nuevo: 'gerente',
+                empresa: {
+                    id: empresa.id,
+                    nombre: empresa.nombre
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error al promover a gerente:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error en el servidor',
+            error: error.message
+        });
+    }
+};
+
+// CREAR ORGANIZADOR (Solo Gerente o Administrador)
+const crearOrganizador = async (req, res) => {
+    try {
+        const { nombre, cedula, telefono, correo, contraseña, id_empresa } = req.body;
+
+        if (!nombre || !cedula || !correo || !contraseña || !id_empresa) {
+            return res.status(400).json({
+                success: false,
+                message: 'Todos los campos son obligatorios para crear un organizador'
+            });
+        }
+
+        // Si es gerente, verificar que la empresa coincide con su empresa
+        if (req.usuario.rol === 'gerente') {
+            if (req.usuario.rolData.id_empresa !== id_empresa) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Solo puede crear organizadores para su propia empresa'
+                });
+            }
+        }
+
+        // Verificar que la empresa existe
+        const empresa = await Empresa.findByPk(id_empresa);
+        if (!empresa) {
+            return res.status(404).json({
+                success: false,
+                message: 'Empresa no encontrada'
             });
         }
 
@@ -231,58 +405,31 @@ const register = async (req, res) => {
             contraseña: contraseñaHash
         });
 
-        let rolCreado = null;
-
-        switch (rol) {
-            case 'administrador':
-                rolCreado = await Administrador.create({
-                    id_usuario: nuevoUsuario.id
-                });
-                break;
-
-            case 'gerente':
-                rolCreado = await AdministradorEmpresa.create({
-                    id_usuario: nuevoUsuario.id,
-                    id_empresa: id_empresa,
-                    es_Gerente: 1
-                });
-                break;
-
-            case 'organizador':
-                rolCreado = await AdministradorEmpresa.create({
-                    id_usuario: nuevoUsuario.id,
-                    id_empresa: id_empresa,
-                    es_Gerente: 0
-                });
-                break;
-
-            case 'ponente':
-                rolCreado = await Ponente.create({
-                    id_usuario: nuevoUsuario.id,
-                    especialidad: especialidad || null
-                });
-                break;
-
-            case 'asistente':
-                rolCreado = await Asistente.create({
-                    id_usuario: nuevoUsuario.id
-                });
-                break;
-        }
+        // Crear organizador (es_Gerente = 0)
+        const nuevoOrganizador = await AdministradorEmpresa.create({
+            id_usuario: nuevoUsuario.id,
+            id_empresa,
+            es_Gerente: 0
+        });
 
         res.status(201).json({
             success: true,
-            message: `Usuario registrado exitosamente como ${rol}`,
+            message: `Organizador creado exitosamente para ${empresa.nombre}`,
             data: {
                 id: nuevoUsuario.id,
                 nombre: nuevoUsuario.nombre,
                 correo: nuevoUsuario.correo,
-                rol: rol
+                rol: 'organizador',
+                empresa: {
+                    id: empresa.id,
+                    nombre: empresa.nombre
+                },
+                creado_por: req.usuario.nombre
             }
         });
 
     } catch (error) {
-        console.error('Error en registro:', error);
+        console.error('Error al crear organizador:', error);
         res.status(500).json({
             success: false,
             message: 'Error en el servidor',
@@ -386,6 +533,8 @@ const getProfile = async (req, res) => {
 module.exports = {
     login,
     register,
+    promoverAGerente,
+    crearOrganizador,
     refresh,
     getProfile
 };

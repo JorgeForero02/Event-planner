@@ -7,6 +7,11 @@ const Empresa = sequelize.define('Empresa', {
     primaryKey: true,
     autoIncrement: true
   },
+  nit: {
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    unique: true
+  },
   nombre: {
     type: DataTypes.STRING(150),
     allowNull: false
@@ -22,6 +27,27 @@ const Empresa = sequelize.define('Empresa', {
   correo: {
     type: DataTypes.STRING(100),
     allowNull: true
+  },
+  id_pais: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Pais',
+      key: 'id'
+    }
+  },
+  id_ciudad: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Ciudad',
+      key: 'id'
+    }
+  },
+  estado: {
+    type: DataTypes.TINYINT,
+    allowNull: false,
+    defaultValue: true
   }
 }, {
   tableName: 'Empresa',

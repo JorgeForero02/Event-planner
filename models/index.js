@@ -88,6 +88,12 @@ Notificacion.belongsTo(TipoNotificacion, { foreignKey: 'id_TipoNotificacion', as
 Evento.hasMany(Notificacion, { foreignKey: 'id_evento', as: 'notificaciones' });
 Notificacion.belongsTo(Evento, { foreignKey: 'id_evento', as: 'evento' });
 
+Empresa.belongsTo(Pais, { foreignKey: 'id_pais', as: 'pais' });
+Empresa.belongsTo(Ciudad, { foreignKey: 'id_ciudad', as: 'ciudad' });
+
+Pais.hasMany(Empresa, { foreignKey: 'id_pais', as: 'empresas' });
+Ciudad.hasMany(Empresa, { foreignKey: 'id_ciudad', as: 'empresas' });
+
 const db = {
   sequelize,
   Sequelize: require('sequelize'),

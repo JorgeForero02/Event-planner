@@ -26,7 +26,7 @@ const isAdministrador = async (req, res, next) => {
     if (req.usuario.rol !== 'administrador') {
         return res.status(403).json({
             success: false,
-            message: 'Acceso denegado. Se requiere rol de administrador'
+            message: 'Acceso denegado. Se requiere rol de administrador del sistema'
         });
     }
     next();
@@ -82,11 +82,23 @@ const isGerenteOrOrganizador = async (req, res, next) => {
     next();
 };
 
-const isAdminOrGerente = async (req, res, next) => {
+const isGerenteOrAdmin = async (req, res, next) => {
     if (req.usuario.rol !== 'administrador' && req.usuario.rol !== 'gerente') {
         return res.status(403).json({
             success: false,
             message: 'Acceso denegado. Se requiere rol de administrador o gerente'
+        });
+    }
+    next();
+};
+
+// NUEVO: Middleware para Admin, Gerente u Organizador
+const isAdminGerenteOrOrganizador = async (req, res, next) => {
+    const rolesPermitidos = ['administrador', 'gerente', 'organizador'];
+    if (!rolesPermitidos.includes(req.usuario.rol)) {
+        return res.status(403).json({
+            success: false,
+            message: 'Acceso denegado. Se requiere rol de administrador, gerente u organizador'
         });
     }
     next();
@@ -100,5 +112,6 @@ module.exports = {
     isPonente,
     isAsistente,
     isGerenteOrOrganizador,
-    isAdminOrGerente
+    isGerenteOrAdmin,
+    isAdminGerenteOrOrganizador
 };
