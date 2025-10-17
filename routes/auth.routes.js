@@ -6,7 +6,8 @@ const {
     promoverAGerente,
     crearOrganizador,
     refresh,
-    getProfile
+    getProfile,
+    recuperarContrasena
 } = require('../controllers/auth.controller');
 const { auth, isAdministrador, isGerenteOrAdmin } = require('../middlewares/auth');
 
@@ -23,5 +24,7 @@ router.post('/promover-gerente', auth, isAdministrador, promoverAGerente);
 
 // Gerente o administrador pueden crear organizadores
 router.post('/crear-organizador', auth, isGerenteOrAdmin, crearOrganizador);
+
+router.post('/recuperar-contrasena', recuperarContrasena);
 
 module.exports = router;

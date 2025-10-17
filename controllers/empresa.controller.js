@@ -36,7 +36,7 @@ const EmpresaController = {
 
       // Buscar la empresa
       const item = await Empresa.findByPk(id);
-      
+
       if (!item) {
         return ApiResponse.notFound(res, 'Empresa no encontrada');
       }
@@ -55,8 +55,12 @@ const EmpresaController = {
     try {
       const { rol } = req.usuario;
 
-      if (rol !== 'administrador') {
-        return ApiResponse.forbidden(res, 'Solo los administradores pueden crear empresas');
+      if (rol !== 'administrador' && rol !== 'asistente') {
+        return ApiResponse.forbidden(res, 'Solo los administradores y asistentes pueden crear empresas');
+      }
+
+      if (rol === 'asistente') {
+        req.body.estado = 0;
       }
 
       const newItem = await Empresa.create(req.body);
@@ -76,7 +80,7 @@ const EmpresaController = {
       }
 
       const item = await Empresa.findByPk(id);
-      
+
       if (!item) {
         return ApiResponse.notFound(res, 'Empresa no encontrada');
       }
@@ -102,7 +106,7 @@ const EmpresaController = {
       }
 
       const item = await Empresa.findByPk(id);
-      
+
       if (!item) {
         return ApiResponse.notFound(res, 'Empresa no encontrada');
       }

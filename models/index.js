@@ -29,8 +29,8 @@ Asistente.belongsTo(Usuario, { foreignKey: 'id_usuario', as: 'usuario' });
 Usuario.hasOne(Ponente, { foreignKey: 'id_usuario', as: 'ponente' });
 Ponente.belongsTo(Usuario, { foreignKey: 'id_usuario', as: 'usuario' });
 
-Administrador.hasMany(AdministradorEmpresa, { foreignKey: 'id_usuario', as: 'empresas' });
-AdministradorEmpresa.belongsTo(Administrador, { foreignKey: 'id_usuario', as: 'administrador' });
+Usuario.hasMany(AdministradorEmpresa, { foreignKey: 'id_usuario', as: 'empresas' });
+AdministradorEmpresa.belongsTo(Usuario, { foreignKey: 'id_usuario', as: 'usuario' });
 
 Empresa.hasMany(AdministradorEmpresa, { foreignKey: 'id_empresa', as: 'administradores' });
 AdministradorEmpresa.belongsTo(Empresa, { foreignKey: 'id_empresa', as: 'empresa' });

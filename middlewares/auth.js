@@ -104,6 +104,18 @@ const isAdminGerenteOrOrganizador = async (req, res, next) => {
     next();
 };
 
+// AsistenteAdministrador
+const isAsistenteAdministrador = async (req, res, next) => {
+    const rolesPermitidos = ['asistente', 'administrador'];
+    if (!rolesPermitidos.includes(req.usuario.rol)) {
+        return res.status(403).json({
+            success: false,
+            message: 'Acceso denegado. Se requiere rol de asistente o administrador'
+        });
+    }
+    next();
+};
+
 module.exports = {
     auth,
     isAdministrador,
@@ -113,5 +125,6 @@ module.exports = {
     isAsistente,
     isGerenteOrOrganizador,
     isGerenteOrAdmin,
-    isAdminGerenteOrOrganizador
+    isAdminGerenteOrOrganizador,
+    isAsistenteAdministrador
 };

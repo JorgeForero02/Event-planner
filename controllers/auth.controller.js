@@ -304,11 +304,6 @@ const promoverAGerente = async (req, res) => {
             });
         }
 
-        // Eliminar el rol de asistente
-        await Asistente.destroy({
-            where: { id_usuario }
-        });
-
         // Crear el rol de gerente (es_Gerente = 1)
         const nuevoGerente = await AdministradorEmpresa.create({
             id_usuario,
@@ -530,11 +525,50 @@ const getProfile = async (req, res) => {
     }
 };
 
+// recuperar contraseña
+const recuperarContrasena = async (req, res) => {
+    try {
+        const { correo } = req.body;
+        const {contraseña} = req.body;
+        if (!correo) {
+            return res.status(400).json({
+                success: false,
+                message: 'Por favor proporcione un correo electrónico'
+            });
+        }
+        const usuario = await Usuario.findOne({ where: { correo } });
+        if (!usuario) {
+            return res.status(404).json({
+                success: false,
+                message: 'Usuario no encontrado'
+            });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const contraseñaHash = await bcrypt.hash(contraseña, salt);
+        await Usuario.update({ contraseña: contraseñaHash }, { where: { correo } });
+
+        res.json({
+            success: true,
+            message: 'Contraseña actualizada exitosamente'
+        });
+        
+    } catch (error) {
+        console.error('Error en recuperación de contraseña:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error en el servidor',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     login,
     register,
     promoverAGerente,
     crearOrganizador,
     refresh,
-    getProfile
+    getProfile,
+    recuperarContrasena
 };

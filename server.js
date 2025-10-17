@@ -42,6 +42,7 @@ db.sequelize.authenticate()
     console.log('Conexión a la base de datos establecida');
     
     if (process.env.NODE_ENV !== 'production') {
+
       return db.sequelize.sync();
     }
   })
