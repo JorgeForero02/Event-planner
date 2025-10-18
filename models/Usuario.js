@@ -1,5 +1,6 @@
 ﻿const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { act } = require('react');
 
 const Usuario = sequelize.define('Usuario', {
   id: {
@@ -31,6 +32,12 @@ const Usuario = sequelize.define('Usuario', {
   contraseña: {
     type: DataTypes.STRING(255),
     allowNull: false
+  },
+  //activo indica si el usuario está activo (1) o inactivo (0)
+  activo: {
+    type: DataTypes.TINYINT,
+    allowNull: false,
+    defaultValue: 1
   }
 }, {
   tableName: 'Usuario',
