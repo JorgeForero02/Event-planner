@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Usuario, Administrador, Asistente, Ponente, AdministradorEmpresa, Empresa } = require('../models');
+const EmailService = require('../services/emailService');
 
 const generarToken = (payload) => {
     return jwt.sign(payload, process.env.JWT_SECRET, {
@@ -104,9 +105,8 @@ const register = async (req, res) => {
             });
         }
 
-        // Solo se permite registro de asistente y ponente
         const rolesPermitidos = ['asistente', 'ponente'];
-        const rolFinal = rol || 'asistente'; // Por defecto asistente
+        const rolFinal = rol || 'asistente'; 
 
         if (!rolesPermitidos.includes(rolFinal)) {
             return res.status(403).json({
@@ -145,11 +145,11 @@ const register = async (req, res) => {
             cedula,
             telefono,
             correo,
-            contraseña: contraseñaHash
+            contraseña: contraseñaHash,
+            activo: 1
         });
 
         let rolCreado = null;
-
         if (rolFinal === 'ponente') {
             rolCreado = await Ponente.create({
                 id_usuario: nuevoUsuario.id,
@@ -159,6 +159,12 @@ const register = async (req, res) => {
             rolCreado = await Asistente.create({
                 id_usuario: nuevoUsuario.id
             });
+        }
+
+        try {
+            await EmailService.enviarBienvenida(nuevoUsuario.correo, nuevoUsuario.nombre, rolFinal);
+        } catch (emailError) {
+            console.error('Error enviando correo de bienvenida:', emailError);
         }
 
         res.status(201).json({
@@ -171,7 +177,6 @@ const register = async (req, res) => {
                 rol: rolFinal
             }
         });
-
     } catch (error) {
         console.error('Error en registro:', error);
         res.status(500).json({
@@ -195,13 +200,20 @@ const login = async (req, res) => {
 
         const usuario = await Usuario.findOne({
             where: { correo },
-            attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo', 'contraseña']
+            attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo', 'contraseña', 'activo']
         });
 
         if (!usuario) {
             return res.status(401).json({
                 success: false,
                 message: 'Credenciales inválidas'
+            });
+        }
+
+        if (usuario.activo === 0) {
+            return res.status(403).json({
+                success: false,
+                message: 'Tu cuenta ha sido desactivada. Contacta al administrador.'
             });
         }
 
@@ -251,7 +263,6 @@ const login = async (req, res) => {
                 refreshToken
             }
         });
-
     } catch (error) {
         console.error('Error en login:', error);
         res.status(500).json({
@@ -274,8 +285,8 @@ const promoverAGerente = async (req, res) => {
             });
         }
 
-        // Verificar que el usuario existe
         const usuario = await Usuario.findByPk(id_usuario);
+
         if (!usuario) {
             return res.status(404).json({
                 success: false,
@@ -283,7 +294,6 @@ const promoverAGerente = async (req, res) => {
             });
         }
 
-        // Verificar que es asistente
         const asistente = await Asistente.findOne({
             where: { id_usuario }
         });
@@ -295,8 +305,8 @@ const promoverAGerente = async (req, res) => {
             });
         }
 
-        // Verificar que la empresa existe
         const empresa = await Empresa.findByPk(id_empresa);
+
         if (!empresa) {
             return res.status(404).json({
                 success: false,
@@ -304,12 +314,17 @@ const promoverAGerente = async (req, res) => {
             });
         }
 
-        // Crear el rol de gerente (es_Gerente = 1)
         const nuevoGerente = await AdministradorEmpresa.create({
             id_usuario,
             id_empresa,
             es_Gerente: 1
         });
+
+        try {
+            await EmailService.enviarPromocionGerente(usuario.correo, usuario.nombre, empresa.nombre);
+        } catch (emailError) {
+            console.error('Error enviando correo de promoción:', emailError);
+        }
 
         res.json({
             success: true,
@@ -325,7 +340,6 @@ const promoverAGerente = async (req, res) => {
                 }
             }
         });
-
     } catch (error) {
         console.error('Error al promover a gerente:', error);
         res.status(500).json({
@@ -348,7 +362,6 @@ const crearOrganizador = async (req, res) => {
             });
         }
 
-        // Si es gerente, verificar que la empresa coincide con su empresa
         if (req.usuario.rol === 'gerente') {
             if (req.usuario.rolData.id_empresa !== id_empresa) {
                 return res.status(403).json({
@@ -358,8 +371,8 @@ const crearOrganizador = async (req, res) => {
             }
         }
 
-        // Verificar que la empresa existe
         const empresa = await Empresa.findByPk(id_empresa);
+
         if (!empresa) {
             return res.status(404).json({
                 success: false,
@@ -389,6 +402,8 @@ const crearOrganizador = async (req, res) => {
             });
         }
 
+        const contraseñaTemporal = contraseña;
+
         const salt = await bcrypt.genSalt(10);
         const contraseñaHash = await bcrypt.hash(contraseña, salt);
 
@@ -397,15 +412,28 @@ const crearOrganizador = async (req, res) => {
             cedula,
             telefono,
             correo,
-            contraseña: contraseñaHash
+            contraseña: contraseñaHash,
+            activo: 1
         });
 
-        // Crear organizador (es_Gerente = 0)
         const nuevoOrganizador = await AdministradorEmpresa.create({
             id_usuario: nuevoUsuario.id,
             id_empresa,
             es_Gerente: 0
         });
+
+        // ENVIAR CORREO CON CREDENCIALES
+        try {
+            await EmailService.enviarCreacionOrganizador(
+                nuevoUsuario.correo,
+                nuevoUsuario.nombre,
+                empresa.nombre,
+                contraseñaTemporal
+            );
+        } catch (emailError) {
+            console.error('Error enviando correo de creación:', emailError);
+            // No fallar la creación si el correo falla
+        }
 
         res.status(201).json({
             success: true,
@@ -422,7 +450,6 @@ const crearOrganizador = async (req, res) => {
                 creado_por: req.usuario.nombre
             }
         });
-
     } catch (error) {
         console.error('Error al crear organizador:', error);
         res.status(500).json({
@@ -455,6 +482,14 @@ const refresh = async (req, res) => {
             });
         }
 
+        // VALIDAR QUE EL USUARIO ESTÉ ACTIVO
+        if (usuario.activo === 0) {
+            return res.status(403).json({
+                success: false,
+                message: 'Tu cuenta ha sido desactivada'
+            });
+        }
+
         const { rol, rolData } = await determinarRol(usuario.id);
 
         if (!rol) {
@@ -481,7 +516,6 @@ const refresh = async (req, res) => {
                 accessToken: newAccessToken
             }
         });
-
     } catch (error) {
         console.error('Error al refrescar token:', error);
         res.status(401).json({
@@ -494,7 +528,7 @@ const refresh = async (req, res) => {
 const getProfile = async (req, res) => {
     try {
         const usuario = await Usuario.findByPk(req.usuario.id, {
-            attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo']
+            attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo', 'activo']
         });
 
         if (!usuario) {
@@ -514,7 +548,6 @@ const getProfile = async (req, res) => {
                 }
             }
         });
-
     } catch (error) {
         console.error('Error al obtener perfil:', error);
         res.status(500).json({
@@ -528,15 +561,17 @@ const getProfile = async (req, res) => {
 // recuperar contraseña
 const recuperarContrasena = async (req, res) => {
     try {
-        const { correo } = req.body;
-        const {contraseña} = req.body;
-        if (!correo) {
+        const { correo, contraseña } = req.body;
+
+        if (!correo || !contraseña) {
             return res.status(400).json({
                 success: false,
-                message: 'Por favor proporcione un correo electrónico'
+                message: 'Por favor proporcione correo y nueva contraseña'
             });
         }
+
         const usuario = await Usuario.findOne({ where: { correo } });
+
         if (!usuario) {
             return res.status(404).json({
                 success: false,
@@ -546,13 +581,13 @@ const recuperarContrasena = async (req, res) => {
 
         const salt = await bcrypt.genSalt(10);
         const contraseñaHash = await bcrypt.hash(contraseña, salt);
+
         await Usuario.update({ contraseña: contraseñaHash }, { where: { correo } });
 
         res.json({
             success: true,
             message: 'Contraseña actualizada exitosamente'
         });
-        
     } catch (error) {
         console.error('Error en recuperación de contraseña:', error);
         res.status(500).json({
