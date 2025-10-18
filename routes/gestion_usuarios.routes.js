@@ -9,6 +9,7 @@ router.put('/users/:id/profile', auth, gestion_usuarios.updateProfile);
 router.put('/users/:id/role-data', auth, gestion_usuarios.updateRoleData);
 router.put('/users/:id/company', auth, isGerenteOrAdmin, gestion_usuarios.changeCompany);
 router.put('/users/:id/password', auth, gestion_usuarios.changePassword);
+router.patch('/users/:id/status', auth, isAdministrador, gestion_usuarios.toggleUserStatus);
 
 router.post('/users', auth, isAdministrador, gestion_usuarios.createUser);
 

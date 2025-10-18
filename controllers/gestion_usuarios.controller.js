@@ -211,6 +211,43 @@ const UserManagementController = {
         } catch (error) {
             next(error);
         }
+    },
+
+    toggleUserStatus: async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const { activo } = req.body; 
+
+            if (req.usuario.id === parseInt(id)) {
+                return ApiResponse.error(res, 'No puedes desactivar tu propia cuenta', 400);
+            }
+
+            const usuario = await Usuario.findByPk(id, {
+                attributes: ['id', 'nombre', 'correo', 'activo']
+            });
+
+            if (!usuario) {
+                return ApiResponse.notFound(res, 'Usuario no encontrado');
+            }
+
+            // Actualizar estado
+            await usuario.update({ activo });
+
+            const mensaje = activo === 1
+                ? `Usuario ${usuario.nombre} activado exitosamente`
+                : `Usuario ${usuario.nombre} desactivado exitosamente`;
+
+            return ApiResponse.success(res, {
+                id: usuario.id,
+                nombre: usuario.nombre,
+                correo: usuario.correo,
+                activo: usuario.activo,
+                modificado_por: req.usuario.nombre
+            }, mensaje);
+
+        } catch (error) {
+            next(error);
+        }
     }
 };
 
