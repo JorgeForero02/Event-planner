@@ -7,7 +7,7 @@ const transporter = nodemailer.createTransport({
         pass: process.env.EMAIL_PASSWORD
     },
     tls: {
-        rejectUnauthorized: false  
+        rejectUnauthorized: false
     }
 });
 
@@ -83,6 +83,82 @@ const EmailService = {
             console.log('Correo de creación de organizador enviado a:', destinatario);
         } catch (error) {
             console.error('Error enviando correo:', error);
+        }
+    },
+
+    enviarEmpresaRegistrada: async (destinatario, nombreUsuario, nombreEmpresa, nit) => {
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: 'Empresa registrada - Pendiente de aprobación',
+            html: `
+        <h2>Hola ${nombreUsuario},</h2>
+        <p>Has registrado exitosamente la empresa <strong>${nombreEmpresa}</strong> (NIT: ${nit}) en nuestra plataforma.</p>
+        <p><strong>Estado actual:</strong> Pendiente de aprobación por el administrador.</p>
+        <p>Recibirás un correo de confirmación una vez que tu empresa sea aprobada.</p>
+        <br>
+        <p>Esto puede tomar entre 24-48 horas hábiles.</p>
+        <p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
+      `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de empresa registrada enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de empresa registrada:', error);
+        }
+    },
+
+    enviarEmpresaAprobada: async (destinatario, nombreUsuario, nombreEmpresa) => {
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: '¡Felicidades! Tu empresa ha sido aprobada',
+            html: `
+        <h2>¡Excelentes noticias, ${nombreUsuario}!</h2>
+        <p>Tu empresa <strong>${nombreEmpresa}</strong> ha sido <strong>aprobada</strong> por nuestro equipo de administración.</p>
+        <p><strong>¿Qué sigue?</strong></p>
+        <ul>
+          <li>Tu empresa ahora está activa en la plataforma</li>
+          <li>Pronto serás contactado para ser asignado como gerente de la empresa</li>
+          <li>Podrás crear organizadores y gestionar eventos para tu empresa</li>
+        </ul>
+        <p><a href="${process.env.FRONTEND_URL}/empresas">Ver mi empresa</a></p>
+        <br>
+        <p>¡Bienvenido a nuestra comunidad empresarial!</p>
+      `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de empresa aprobada enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de empresa aprobada:', error);
+        }
+    },
+
+    enviarEmpresaRechazada: async (destinatario, nombreUsuario, nombreEmpresa, motivo) => {
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: 'Empresa no aprobada - Información adicional requerida',
+            html: `
+        <h2>Hola ${nombreUsuario},</h2>
+        <p>Lamentamos informarte que tu empresa <strong>${nombreEmpresa}</strong> no ha sido aprobada.</p>
+        <p><strong>Motivo:</strong></p>
+        <p>${motivo}</p>
+        <br>
+        <p>Si deseas apelar esta decisión o proporcionar información adicional, por favor contacta a nuestro equipo de soporte.</p>
+        <p>Estamos aquí para ayudarte.</p>
+      `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de empresa rechazada enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de empresa rechazada:', error);
         }
     }
 };

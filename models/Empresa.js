@@ -47,7 +47,15 @@ const Empresa = sequelize.define('Empresa', {
   estado: {
     type: DataTypes.TINYINT,
     allowNull: false,
-    defaultValue: true
+    defaultValue: 0  
+  },
+  id_creador: { 
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Usuario',
+      key: 'id'
+    }
   }
 }, {
   tableName: 'Empresa',
