@@ -94,6 +94,9 @@ Empresa.belongsTo(Ciudad, { foreignKey: 'id_ciudad', as: 'ciudad' });
 Pais.hasMany(Empresa, { foreignKey: 'id_pais', as: 'empresas' });
 Ciudad.hasMany(Empresa, { foreignKey: 'id_ciudad', as: 'empresas' });
 
+Empresa.belongsTo(Usuario, { foreignKey: 'id_creador', as: 'creador' });
+Usuario.hasMany(Empresa, { foreignKey: 'id_creador', as: 'empresasCreadas' });
+
 const db = {
   sequelize,
   Sequelize: require('sequelize'),
