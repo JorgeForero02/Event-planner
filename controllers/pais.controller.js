@@ -1,5 +1,6 @@
 ﻿const db = require('../models');
 const ApiResponse = require('../utils/response');
+
 const Pais = db.Pais;
 
 const PaisController = {
@@ -16,11 +17,11 @@ const PaisController = {
     try {
       const { id } = req.params;
       const item = await Pais.findByPk(id);
-      
+
       if (!item) {
         return ApiResponse.notFound(res, 'Registro no encontrado');
       }
-      
+
       return ApiResponse.success(res, item, 'Registro obtenido correctamente');
     } catch (error) {
       next(error);
@@ -40,11 +41,11 @@ const PaisController = {
     try {
       const { id } = req.params;
       const item = await Pais.findByPk(id);
-      
+
       if (!item) {
         return ApiResponse.notFound(res, 'Registro no encontrado');
       }
-      
+
       await item.update(req.body);
       return ApiResponse.success(res, item, 'Registro actualizado correctamente');
     } catch (error) {
@@ -56,11 +57,11 @@ const PaisController = {
     try {
       const { id } = req.params;
       const item = await Pais.findByPk(id);
-      
+
       if (!item) {
         return ApiResponse.notFound(res, 'Registro no encontrado');
       }
-      
+
       await item.destroy();
       return ApiResponse.success(res, null, 'Registro eliminado correctamente');
     } catch (error) {

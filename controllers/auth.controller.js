@@ -3,19 +3,26 @@ const jwt = require('jsonwebtoken');
 const { Usuario, Administrador, Asistente, Ponente, AdministradorEmpresa, Empresa } = require('../models');
 const EmailService = require('../services/emailService');
 
-const generarToken = (payload) => {
+const SALT_ROUNDS = 10;
+const ALLOWED_PUBLIC_ROLES = ['asistente', 'ponente'];
+const ROLE_GERENTE = 1;
+const ROLE_ORGANIZADOR = 0;
+const STATUS_ACTIVE = 1;
+const STATUS_INACTIVE = 0;
+
+const generateAccessToken = (payload) => {
     return jwt.sign(payload, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRE || '24h'
     });
 };
 
-const generarRefreshToken = (payload) => {
+const generateRefreshToken = (payload) => {
     return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
         expiresIn: process.env.JWT_REFRESH_EXPIRE || '7d'
     });
 };
 
-const determinarRol = async (usuarioId) => {
+const findUserRole = async (usuarioId) => {
     const administrador = await Administrador.findOne({
         where: { id_usuario: usuarioId }
     });
@@ -23,9 +30,7 @@ const determinarRol = async (usuarioId) => {
     if (administrador) {
         return {
             rol: 'administrador',
-            rolData: {
-                id_administrador: administrador.id
-            }
+            rolData: { id_administrador: administrador.id }
         };
     }
 
@@ -39,25 +44,15 @@ const determinarRol = async (usuarioId) => {
     });
 
     if (adminEmpresa) {
-        if (adminEmpresa.es_Gerente === 1) {
-            return {
-                rol: 'gerente',
-                rolData: {
-                    id_admin_empresa: adminEmpresa.id,
-                    id_empresa: adminEmpresa.id_empresa,
-                    empresa: adminEmpresa.empresa
-                }
-            };
-        } else {
-            return {
-                rol: 'organizador',
-                rolData: {
-                    id_admin_empresa: adminEmpresa.id,
-                    id_empresa: adminEmpresa.id_empresa,
-                    empresa: adminEmpresa.empresa
-                }
-            };
-        }
+        const rol = adminEmpresa.es_Gerente === ROLE_GERENTE ? 'gerente' : 'organizador';
+        return {
+            rol,
+            rolData: {
+                id_admin_empresa: adminEmpresa.id,
+                id_empresa: adminEmpresa.id_empresa,
+                empresa: adminEmpresa.empresa
+            }
+        };
     }
 
     const ponente = await Ponente.findOne({
@@ -81,64 +76,86 @@ const determinarRol = async (usuarioId) => {
     if (asistente) {
         return {
             rol: 'asistente',
-            rolData: {
-                id_asistente: asistente.id_asistente
-            }
+            rolData: { id_asistente: asistente.id_asistente }
         };
     }
 
-    return {
-        rol: null,
-        rolData: null
-    };
+    return { rol: null, rolData: null };
 };
 
-// REGISTRO PÚBLICO - Solo Asistente y Ponente
+const validateRequiredFields = (fields, fieldNames) => {
+    return fieldNames.every(name => fields[name]);
+};
+
+const isEmailTaken = async (correo) => {
+    const usuario = await Usuario.findOne({ where: { correo } });
+    return !!usuario;
+};
+
+const isCedulaTaken = async (cedula) => {
+    const usuario = await Usuario.findOne({ where: { cedula } });
+    return !!usuario;
+};
+
+const hashPassword = async (password) => {
+    const salt = await bcrypt.genSalt(SALT_ROUNDS);
+    return await bcrypt.hash(password, salt);
+};
+
+const createRoleRecord = async (usuarioId, rol, especialidad) => {
+    if (rol === 'ponente') {
+        return await Ponente.create({
+            id_usuario: usuarioId,
+            especialidad: especialidad || null
+        });
+    }
+
+    return await Asistente.create({ id_usuario: usuarioId });
+};
+
+const sendWelcomeEmail = async (correo, nombre, rol) => {
+    try {
+        await EmailService.enviarBienvenida(correo, nombre, rol);
+    } catch (error) {
+        console.error('Error enviando correo de bienvenida:', error);
+    }
+};
+
 const register = async (req, res) => {
     try {
         const { nombre, cedula, telefono, correo, contraseña, rol, especialidad } = req.body;
 
-        if (!nombre || !cedula || !correo || !contraseña) {
+        if (!validateRequiredFields(req.body, ['nombre', 'cedula', 'correo', 'contraseña'])) {
             return res.status(400).json({
                 success: false,
                 message: 'Todos los campos obligatorios deben ser proporcionados'
             });
         }
 
-        const rolesPermitidos = ['asistente', 'ponente'];
-        const rolFinal = rol || 'asistente'; 
+        const rolFinal = rol || 'asistente';
 
-        if (!rolesPermitidos.includes(rolFinal)) {
+        if (!ALLOWED_PUBLIC_ROLES.includes(rolFinal)) {
             return res.status(403).json({
                 success: false,
                 message: 'Solo puede registrarse como asistente o ponente. Para otros roles contacte con un administrador.'
             });
         }
 
-        const usuarioExistente = await Usuario.findOne({
-            where: { correo }
-        });
-
-        if (usuarioExistente) {
+        if (await isEmailTaken(correo)) {
             return res.status(400).json({
                 success: false,
                 message: 'El correo ya está registrado'
             });
         }
 
-        const cedulaExistente = await Usuario.findOne({
-            where: { cedula }
-        });
-
-        if (cedulaExistente) {
+        if (await isCedulaTaken(cedula)) {
             return res.status(400).json({
                 success: false,
                 message: 'La cédula ya está registrada'
             });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const contraseñaHash = await bcrypt.hash(contraseña, salt);
+        const contraseñaHash = await hashPassword(contraseña);
 
         const nuevoUsuario = await Usuario.create({
             nombre,
@@ -146,26 +163,11 @@ const register = async (req, res) => {
             telefono,
             correo,
             contraseña: contraseñaHash,
-            activo: 1
+            activo: STATUS_ACTIVE
         });
 
-        let rolCreado = null;
-        if (rolFinal === 'ponente') {
-            rolCreado = await Ponente.create({
-                id_usuario: nuevoUsuario.id,
-                especialidad: especialidad || null
-            });
-        } else {
-            rolCreado = await Asistente.create({
-                id_usuario: nuevoUsuario.id
-            });
-        }
-
-        try {
-            await EmailService.enviarBienvenida(nuevoUsuario.correo, nuevoUsuario.nombre, rolFinal);
-        } catch (emailError) {
-            console.error('Error enviando correo de bienvenida:', emailError);
-        }
+        await createRoleRecord(nuevoUsuario.id, rolFinal, especialidad);
+        await sendWelcomeEmail(nuevoUsuario.correo, nuevoUsuario.nombre, rolFinal);
 
         res.status(201).json({
             success: true,
@@ -187,6 +189,23 @@ const register = async (req, res) => {
     }
 };
 
+const validateCredentials = async (correo, contraseña, usuario) => {
+    if (!usuario) {
+        return { valid: false, message: 'Credenciales inválidas' };
+    }
+
+    if (usuario.activo === STATUS_INACTIVE) {
+        return { valid: false, message: 'Tu cuenta ha sido desactivada. Contacta al administrador.' };
+    }
+
+    const isPasswordValid = await bcrypt.compare(contraseña, usuario.contraseña);
+    if (!isPasswordValid) {
+        return { valid: false, message: 'Credenciales inválidas' };
+    }
+
+    return { valid: true };
+};
+
 const login = async (req, res) => {
     try {
         const { correo, contraseña } = req.body;
@@ -203,30 +222,15 @@ const login = async (req, res) => {
             attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo', 'contraseña', 'activo']
         });
 
-        if (!usuario) {
+        const validation = await validateCredentials(correo, contraseña, usuario);
+        if (!validation.valid) {
             return res.status(401).json({
                 success: false,
-                message: 'Credenciales inválidas'
+                message: validation.message
             });
         }
 
-        if (usuario.activo === 0) {
-            return res.status(403).json({
-                success: false,
-                message: 'Tu cuenta ha sido desactivada. Contacta al administrador.'
-            });
-        }
-
-        const contraseñaValida = await bcrypt.compare(contraseña, usuario.contraseña);
-
-        if (!contraseñaValida) {
-            return res.status(401).json({
-                success: false,
-                message: 'Credenciales inválidas'
-            });
-        }
-
-        const { rol, rolData } = await determinarRol(usuario.id);
+        const { rol, rolData } = await findUserRole(usuario.id);
 
         if (!rol) {
             return res.status(403).json({
@@ -239,12 +243,12 @@ const login = async (req, res) => {
             id: usuario.id,
             correo: usuario.correo,
             nombre: usuario.nombre,
-            rol: rol,
-            rolData: rolData
+            rol,
+            rolData
         };
 
-        const accessToken = generarToken(tokenPayload);
-        const refreshToken = generarRefreshToken({ id: usuario.id, correo: usuario.correo });
+        const accessToken = generateAccessToken(tokenPayload);
+        const refreshToken = generateRefreshToken({ id: usuario.id, correo: usuario.correo });
 
         res.json({
             success: true,
@@ -256,8 +260,8 @@ const login = async (req, res) => {
                     cedula: usuario.cedula,
                     telefono: usuario.telefono,
                     correo: usuario.correo,
-                    rol: rol,
-                    rolData: rolData
+                    rol,
+                    rolData
                 },
                 accessToken,
                 refreshToken
@@ -273,7 +277,6 @@ const login = async (req, res) => {
     }
 };
 
-// PROMOVER ASISTENTE A GERENTE (Solo Administrador del Sistema)
 const promoverAGerente = async (req, res) => {
     try {
         const { id_usuario, id_empresa } = req.body;
@@ -286,7 +289,6 @@ const promoverAGerente = async (req, res) => {
         }
 
         const usuario = await Usuario.findByPk(id_usuario);
-
         if (!usuario) {
             return res.status(404).json({
                 success: false,
@@ -294,10 +296,7 @@ const promoverAGerente = async (req, res) => {
             });
         }
 
-        const asistente = await Asistente.findOne({
-            where: { id_usuario }
-        });
-
+        const asistente = await Asistente.findOne({ where: { id_usuario } });
         if (!asistente) {
             return res.status(400).json({
                 success: false,
@@ -306,7 +305,6 @@ const promoverAGerente = async (req, res) => {
         }
 
         const empresa = await Empresa.findByPk(id_empresa);
-
         if (!empresa) {
             return res.status(404).json({
                 success: false,
@@ -314,10 +312,10 @@ const promoverAGerente = async (req, res) => {
             });
         }
 
-        const nuevoGerente = await AdministradorEmpresa.create({
+        await AdministradorEmpresa.create({
             id_usuario,
             id_empresa,
-            es_Gerente: 1
+            es_Gerente: ROLE_GERENTE
         });
 
         try {
@@ -350,29 +348,32 @@ const promoverAGerente = async (req, res) => {
     }
 };
 
-// CREAR ORGANIZADOR (Solo Gerente o Administrador)
+const validateGerentePermissions = (usuarioRol, usuarioEmpresaId, empresaId) => {
+    if (usuarioRol === 'gerente' && usuarioEmpresaId !== empresaId) {
+        return false;
+    }
+    return true;
+};
+
 const crearOrganizador = async (req, res) => {
     try {
         const { nombre, cedula, telefono, correo, contraseña, id_empresa } = req.body;
 
-        if (!nombre || !cedula || !correo || !contraseña || !id_empresa) {
+        if (!validateRequiredFields(req.body, ['nombre', 'cedula', 'correo', 'contraseña', 'id_empresa'])) {
             return res.status(400).json({
                 success: false,
                 message: 'Todos los campos son obligatorios para crear un organizador'
             });
         }
 
-        if (req.usuario.rol === 'gerente') {
-            if (req.usuario.rolData.id_empresa !== id_empresa) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Solo puede crear organizadores para su propia empresa'
-                });
-            }
+        if (!validateGerentePermissions(req.usuario.rol, req.usuario.rolData.id_empresa, id_empresa)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Solo puede crear organizadores para su propia empresa'
+            });
         }
 
         const empresa = await Empresa.findByPk(id_empresa);
-
         if (!empresa) {
             return res.status(404).json({
                 success: false,
@@ -380,32 +381,21 @@ const crearOrganizador = async (req, res) => {
             });
         }
 
-        const usuarioExistente = await Usuario.findOne({
-            where: { correo }
-        });
-
-        if (usuarioExistente) {
+        if (await isEmailTaken(correo)) {
             return res.status(400).json({
                 success: false,
                 message: 'El correo ya está registrado'
             });
         }
 
-        const cedulaExistente = await Usuario.findOne({
-            where: { cedula }
-        });
-
-        if (cedulaExistente) {
+        if (await isCedulaTaken(cedula)) {
             return res.status(400).json({
                 success: false,
                 message: 'La cédula ya está registrada'
             });
         }
 
-        const contraseñaTemporal = contraseña;
-
-        const salt = await bcrypt.genSalt(10);
-        const contraseñaHash = await bcrypt.hash(contraseña, salt);
+        const contraseñaHash = await hashPassword(contraseña);
 
         const nuevoUsuario = await Usuario.create({
             nombre,
@@ -413,26 +403,24 @@ const crearOrganizador = async (req, res) => {
             telefono,
             correo,
             contraseña: contraseñaHash,
-            activo: 1
+            activo: STATUS_ACTIVE
         });
 
-        const nuevoOrganizador = await AdministradorEmpresa.create({
+        await AdministradorEmpresa.create({
             id_usuario: nuevoUsuario.id,
             id_empresa,
-            es_Gerente: 0
+            es_Gerente: ROLE_ORGANIZADOR
         });
 
-        // ENVIAR CORREO CON CREDENCIALES
         try {
             await EmailService.enviarCreacionOrganizador(
                 nuevoUsuario.correo,
                 nuevoUsuario.nombre,
                 empresa.nombre,
-                contraseñaTemporal
+                contraseña
             );
         } catch (emailError) {
             console.error('Error enviando correo de creación:', emailError);
-            // No fallar la creación si el correo falla
         }
 
         res.status(201).json({
@@ -472,7 +460,6 @@ const refresh = async (req, res) => {
         }
 
         const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-
         const usuario = await Usuario.findByPk(decoded.id);
 
         if (!usuario) {
@@ -482,15 +469,14 @@ const refresh = async (req, res) => {
             });
         }
 
-        // VALIDAR QUE EL USUARIO ESTÉ ACTIVO
-        if (usuario.activo === 0) {
+        if (usuario.activo === STATUS_INACTIVE) {
             return res.status(403).json({
                 success: false,
                 message: 'Tu cuenta ha sido desactivada'
             });
         }
 
-        const { rol, rolData } = await determinarRol(usuario.id);
+        const { rol, rolData } = await findUserRole(usuario.id);
 
         if (!rol) {
             return res.status(403).json({
@@ -503,11 +489,11 @@ const refresh = async (req, res) => {
             id: usuario.id,
             correo: usuario.correo,
             nombre: usuario.nombre,
-            rol: rol,
-            rolData: rolData
+            rol,
+            rolData
         };
 
-        const newAccessToken = generarToken(tokenPayload);
+        const newAccessToken = generateAccessToken(tokenPayload);
 
         res.json({
             success: true,
@@ -558,7 +544,6 @@ const getProfile = async (req, res) => {
     }
 };
 
-// recuperar contraseña
 const recuperarContrasena = async (req, res) => {
     try {
         const { correo, contraseña } = req.body;
@@ -579,9 +564,7 @@ const recuperarContrasena = async (req, res) => {
             });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const contraseñaHash = await bcrypt.hash(contraseña, salt);
-
+        const contraseñaHash = await hashPassword(contraseña);
         await Usuario.update({ contraseña: contraseñaHash }, { where: { correo } });
 
         res.json({

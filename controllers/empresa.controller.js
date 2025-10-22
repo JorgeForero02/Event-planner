@@ -1,31 +1,71 @@
 ﻿const db = require('../models');
 const ApiResponse = require('../utils/response');
 const EmailService = require('../services/emailService');
+
 const Empresa = db.Empresa;
 const Usuario = db.Usuario;
 const AdministradorEmpresa = db.AdministradorEmpresa;
 
+const STATUS_PENDING = 0;
+const STATUS_ACTIVE = 1;
+const STATUS_REJECTED = 2;
+const ROLE_GERENTE = 1;
+
+const canUserAccessCompany = (userRole, userCompanyId, companyId) => {
+  if (userRole === 'administrador') return true;
+  if ((userRole === 'gerente' || userRole === 'organizador') && userCompanyId === parseInt(companyId)) {
+    return true;
+  }
+  return false;
+};
+
+const buildWhereClause = (rol, incluirPendientes) => {
+  if (rol === 'administrador') {
+    return incluirPendientes === 'true' ? {} : { estado: STATUS_ACTIVE };
+  }
+  return { estado: STATUS_ACTIVE };
+};
+
+const sendCompanyRegistrationEmail = async (usuario, empresa) => {
+  try {
+    await EmailService.enviarEmpresaRegistrada(
+      usuario.correo,
+      usuario.nombre,
+      empresa.nombre,
+      empresa.nit
+    );
+  } catch (error) {
+    console.error('Error enviando correo:', error);
+  }
+};
+
+const sendApprovalEmail = async (creador, empresa, aprobar, motivo) => {
+  try {
+    if (aprobar) {
+      await EmailService.enviarEmpresaAprobada(creador.correo, creador.nombre, empresa.nombre);
+    } else {
+      await EmailService.enviarEmpresaRechazada(
+        creador.correo,
+        creador.nombre,
+        empresa.nombre,
+        motivo || 'No se especificó motivo'
+      );
+    }
+  } catch (error) {
+    console.error('Error enviando correo:', error);
+  }
+};
+
 const EmpresaController = {
-  // GET ALL - Admin ve todas, Gerente/Organizador solo su empresa
   getAll: async (req, res, next) => {
     try {
       const { rol, rolData } = req.usuario;
-      const { incluir_pendientes } = req.query; // Solo admin puede ver pendientes
-      
-      let whereClause = {};
-      
-      // Admin puede ver todas o solo activas
-      if (rol === 'administrador') {
-        if (incluir_pendientes !== 'true') {
-          whereClause.estado = 1; // Solo activas
-        }
-        // Si incluir_pendientes es true, no filtra por estado
-      } else {
-        // Otros roles solo ven activas
-        whereClause.estado = 1;
-      }
+      const { incluir_pendientes } = req.query;
+
+      const whereClause = buildWhereClause(rol, incluir_pendientes);
 
       let items;
+
       if (rol === 'administrador') {
         items = await Empresa.findAll({
           where: whereClause,
@@ -33,9 +73,9 @@ const EmpresaController = {
         });
       } else if (rol === 'gerente' || rol === 'organizador') {
         items = await Empresa.findAll({
-          where: { 
+          where: {
             id: rolData.id_empresa,
-            ...whereClause 
+            ...whereClause
           },
           order: [['id', 'ASC']]
         });
@@ -49,21 +89,18 @@ const EmpresaController = {
     }
   },
 
-  // GET BY ID
   getById: async (req, res, next) => {
     try {
       const { id } = req.params;
       const { rol, rolData } = req.usuario;
 
-      // Buscar la empresa
       const item = await Empresa.findByPk(id);
 
       if (!item) {
         return ApiResponse.notFound(res, 'Empresa no encontrada');
       }
 
-      // Verificar permisos
-      if ((rol === 'gerente' || rol === 'organizador') && rolData.id_empresa !== parseInt(id)) {
+      if (!canUserAccessCompany(rol, rolData?.id_empresa, id)) {
         return ApiResponse.forbidden(res, 'No tiene permisos para ver esta empresa');
       }
 
@@ -73,7 +110,6 @@ const EmpresaController = {
     }
   },
 
-  // CREATE
   create: async (req, res, next) => {
     try {
       const { rol, id: usuarioId } = req.usuario;
@@ -82,44 +118,30 @@ const EmpresaController = {
         return ApiResponse.forbidden(res, 'Solo los administradores y asistentes pueden crear empresas');
       }
 
+      const estado = rol === 'asistente' ? STATUS_PENDING : STATUS_ACTIVE;
+      const empresaData = {
+        ...req.body,
+        estado,
+        ...(rol === 'asistente' && { id_creador: usuarioId })
+      };
+
+      const newItem = await Empresa.create(empresaData);
+
       if (rol === 'asistente') {
-        req.body.estado = 0;  
-        req.body.id_creador = usuarioId; 
-      } else {
-        req.body.estado = 1;
+        const usuario = await Usuario.findByPk(usuarioId);
+        await sendCompanyRegistrationEmail(usuario, newItem);
       }
 
-      const newItem = await Empresa.create(req.body);
+      const message = rol === 'asistente'
+        ? 'Empresa creada correctamente. Pendiente de aprobación por el administrador.'
+        : 'Empresa creada correctamente';
 
-      // ENVIAR CORREO si es asistente
-      if (rol === 'asistente') {
-        try {
-          const usuario = await Usuario.findByPk(usuarioId);
-          await EmailService.enviarEmpresaRegistrada(
-            usuario.correo,
-            usuario.nombre,
-            newItem.nombre,
-            newItem.nit
-          );
-        } catch (emailError) {
-          console.error('Error enviando correo:', emailError);
-        }
-      }
-
-      return ApiResponse.success(
-        res, 
-        newItem, 
-        rol === 'asistente' 
-          ? 'Empresa creada correctamente. Pendiente de aprobación por el administrador.'
-          : 'Empresa creada correctamente',
-        201
-      );
+      return ApiResponse.success(res, newItem, message, 201);
     } catch (error) {
       next(error);
     }
   },
 
-  // UPDATE
   update: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -147,7 +169,6 @@ const EmpresaController = {
     }
   },
 
-  // DELETE
   delete: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -171,7 +192,6 @@ const EmpresaController = {
     }
   },
 
-  // GET EQUIPO
   getEquipo: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -183,7 +203,7 @@ const EmpresaController = {
         return ApiResponse.notFound(res, 'Empresa no encontrada');
       }
 
-      if ((rol === 'gerente' || rol === 'organizador') && rolData.id_empresa !== parseInt(id)) {
+      if (!canUserAccessCompany(rol, rolData?.id_empresa, id)) {
         return ApiResponse.forbidden(res, 'No tiene permisos para ver el equipo de esta empresa');
       }
 
@@ -200,7 +220,7 @@ const EmpresaController = {
       const equipoFormateado = equipo.map(miembro => ({
         id: miembro.id,
         usuario: miembro.usuario,
-        rol: miembro.es_Gerente === 1 ? 'gerente' : 'organizador'
+        rol: miembro.es_Gerente === ROLE_GERENTE ? 'gerente' : 'organizador'
       }));
 
       return ApiResponse.success(res, equipoFormateado, 'Equipo obtenido correctamente');
@@ -209,11 +229,10 @@ const EmpresaController = {
     }
   },
 
-  // NUEVO: GET EMPRESAS PENDIENTES (Solo administrador)
   getPendientes: async (req, res, next) => {
     try {
       const empresasPendientes = await Empresa.findAll({
-        where: { estado: 0 },
+        where: { estado: STATUS_PENDING },
         include: [{
           model: Usuario,
           as: 'creador',
@@ -228,11 +247,10 @@ const EmpresaController = {
     }
   },
 
-  // NUEVO: APROBAR O RECHAZAR EMPRESA (Solo administrador)
   aprobarEmpresa: async (req, res, next) => {
     try {
       const { id } = req.params;
-      const { aprobar, motivo } = req.body; 
+      const { aprobar, motivo } = req.body;
 
       const empresa = await Empresa.findByPk(id);
 
@@ -240,43 +258,23 @@ const EmpresaController = {
         return ApiResponse.notFound(res, 'Empresa no encontrada');
       }
 
-      if (empresa.estado !== 0) {
+      if (empresa.estado !== STATUS_PENDING) {
         return ApiResponse.error(res, 'Esta empresa ya fue procesada anteriormente', 400);
       }
 
-      const nuevoEstado = aprobar ? 1 : 2;
+      const nuevoEstado = aprobar ? STATUS_ACTIVE : STATUS_REJECTED;
       await empresa.update({ estado: nuevoEstado });
 
       if (empresa.id_creador) {
         const creador = await Usuario.findByPk(empresa.id_creador);
-
         if (creador) {
-          try {
-            if (aprobar) {
-              await EmailService.enviarEmpresaAprobada(
-                creador.correo,
-                creador.nombre,
-                empresa.nombre
-              );
-            } else {
-              await EmailService.enviarEmpresaRechazada(
-                creador.correo,
-                creador.nombre,
-                empresa.nombre,
-                motivo || 'No se especificó motivo'
-              );
-            }
-          } catch (emailError) {
-            console.error('Error enviando correo:', emailError);
-          }
+          await sendApprovalEmail(creador, empresa, aprobar, motivo);
         }
       }
 
-      return ApiResponse.success(
-        res,
-        empresa,
-        aprobar ? 'Empresa aprobada exitosamente' : 'Empresa rechazada'
-      );
+      const message = aprobar ? 'Empresa aprobada exitosamente' : 'Empresa rechazada';
+
+      return ApiResponse.success(res, empresa, message);
     } catch (error) {
       next(error);
     }
