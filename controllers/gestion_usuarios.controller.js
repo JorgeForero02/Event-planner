@@ -1,6 +1,7 @@
 const { Usuario, Administrador, Asistente, Ponente, AdministradorEmpresa, Empresa } = require('../models');
 const bcrypt = require('bcryptjs');
 const ApiResponse = require('../utils/response');
+const AuditoriaService = require('../services/auditoriaService');
 
 const SALT_ROUNDS = 10;
 const STATUS_ACTIVE = 1;
@@ -9,7 +10,6 @@ const findCompleteUserRole = async (usuarioId) => {
     const administrador = await Administrador.findOne({
         where: { id_usuario: usuarioId }
     });
-
     if (administrador) {
         return {
             rol: 'administrador',
@@ -26,7 +26,6 @@ const findCompleteUserRole = async (usuarioId) => {
             attributes: ['id', 'nombre']
         }]
     });
-
     if (adminEmpresa) {
         const isGerente = adminEmpresa.es_Gerente === 1;
         return {
@@ -43,7 +42,6 @@ const findCompleteUserRole = async (usuarioId) => {
     const ponente = await Ponente.findOne({
         where: { id_usuario: usuarioId }
     });
-
     if (ponente) {
         return {
             rol: 'ponente',
@@ -57,7 +55,6 @@ const findCompleteUserRole = async (usuarioId) => {
     const asistente = await Asistente.findOne({
         where: { id_usuario: usuarioId }
     });
-
     if (asistente) {
         return {
             rol: 'asistente',
@@ -104,10 +101,8 @@ const createUserRole = async (usuarioId, rol, roleData) => {
 const isCedulaAvailable = async (cedula, excludeUserId = null) => {
     const where = { cedula };
     const existingUser = await Usuario.findOne({ where });
-
     if (!existingUser) return true;
     if (excludeUserId && existingUser.id === excludeUserId) return true;
-
     return false;
 };
 
@@ -129,7 +124,6 @@ const UserManagementController = {
     getUserComplete: async (req, res, next) => {
         try {
             const { id } = req.params;
-
             const usuario = await Usuario.findByPk(id, {
                 attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo']
             });
@@ -139,6 +133,13 @@ const UserManagementController = {
             }
 
             const rol = await findCompleteUserRole(id);
+
+            await AuditoriaService.registrar({
+                mensaje: `Consulta de información de usuario: ${usuario.nombre}`,
+                tipo: 'READ',
+                accion: 'consultar_usuario',
+                usuario: req.usuario
+            });
 
             return ApiResponse.success(res, {
                 ...usuario.toJSON(),
@@ -153,22 +154,30 @@ const UserManagementController = {
         try {
             const { id } = req.params;
             const { nombre, telefono, cedula } = req.body;
-
             const usuario = await Usuario.findByPk(id);
 
             if (!usuario) {
                 return ApiResponse.notFound(res, 'Usuario no encontrado');
             }
 
+            const datosAnteriores = { ...usuario.toJSON() };
+
             if (cedula && cedula !== usuario.cedula) {
                 const isAvailable = await isCedulaAvailable(cedula, parseInt(id));
-
                 if (!isAvailable) {
                     return ApiResponse.error(res, 'La cédula ya está registrada', 400);
                 }
             }
 
             await usuario.update({ nombre, telefono, cedula });
+
+            await AuditoriaService.registrarActualizacion(
+                'perfil_usuario',
+                id,
+                datosAnteriores,
+                usuario.toJSON(),
+                req.usuario
+            );
 
             return ApiResponse.success(res, usuario, 'Perfil actualizado correctamente');
         } catch (error) {
@@ -180,19 +189,38 @@ const UserManagementController = {
         try {
             const { id } = req.params;
             const { rol, roleData } = req.body;
-
             let updated = null;
+            let datosAnteriores = null;
 
             if (rol === 'ponente') {
                 const ponente = await Ponente.findOne({ where: { id_usuario: id } });
                 if (ponente) {
+                    datosAnteriores = { ...ponente.toJSON() };
                     updated = await ponente.update({ especialidad: roleData.especialidad });
+                }
+            } else if (rol === 'gerente' || rol === 'organizador') {
+                const adminEmpresa = await AdministradorEmpresa.findOne({
+                    where: { id_usuario: id }
+                });
+                if (adminEmpresa && roleData.empresa_id) {
+                    datosAnteriores = { ...adminEmpresa.toJSON() };
+                    updated = await adminEmpresa.update({
+                        id_empresa: roleData.empresa_id
+                    });
                 }
             }
 
             if (!updated) {
                 return ApiResponse.notFound(res, 'Rol no encontrado para este usuario');
             }
+
+            await AuditoriaService.registrarActualizacion(
+                `datos_rol_${rol}`,
+                id,
+                datosAnteriores,
+                updated.toJSON(),
+                req.usuario
+            );
 
             return ApiResponse.success(res, updated, 'Datos de rol actualizados');
         } catch (error) {
@@ -206,7 +234,6 @@ const UserManagementController = {
             const { nueva_empresa_id } = req.body;
 
             const empresa = await Empresa.findByPk(nueva_empresa_id);
-
             if (!empresa) {
                 return ApiResponse.notFound(res, 'Empresa no encontrada');
             }
@@ -221,6 +248,13 @@ const UserManagementController = {
 
             const empresaAnterior = adminEmpresa.id_empresa;
             await adminEmpresa.update({ id_empresa: nueva_empresa_id });
+
+            await AuditoriaService.registrar({
+                mensaje: `Usuario ID ${id} cambió de empresa ${empresaAnterior} a ${nueva_empresa_id} (${empresa.nombre})`,
+                tipo: 'UPDATE',
+                accion: 'cambiar_empresa',
+                usuario: req.usuario
+            });
 
             return ApiResponse.success(res, {
                 usuario_id: id,
@@ -251,7 +285,6 @@ const UserManagementController = {
             }
 
             const contraseñaHash = await hashPassword(contraseña);
-
             const nuevoUsuario = await Usuario.create({
                 nombre,
                 cedula,
@@ -261,6 +294,15 @@ const UserManagementController = {
             });
 
             const rolCreado = await createUserRole(nuevoUsuario.id, rol, roleData);
+
+            await AuditoriaService.registrarCreacion('usuario', {
+                id: nuevoUsuario.id,
+                nombre: nuevoUsuario.nombre,
+                cedula: nuevoUsuario.cedula,
+                correo: nuevoUsuario.correo,
+                rol: rol,
+                creado_por_admin: true
+            }, req.usuario);
 
             return ApiResponse.success(res, {
                 usuario: nuevoUsuario,
@@ -287,6 +329,13 @@ const UserManagementController = {
                 })
             );
 
+            await AuditoriaService.registrar({
+                mensaje: `Consulta de listado completo de usuarios (${usuarios.length} registros)`,
+                tipo: 'READ',
+                accion: 'listar_usuarios',
+                usuario: req.usuario
+            });
+
             return ApiResponse.success(res, usuariosCompletos, 'Usuarios obtenidos correctamente');
         } catch (error) {
             next(error);
@@ -299,7 +348,7 @@ const UserManagementController = {
             const { contraseña_actual, contraseña_nueva } = req.body;
 
             const usuario = await Usuario.findByPk(id, {
-                attributes: ['id', 'contraseña']
+                attributes: ['id', 'nombre', 'correo', 'contraseña']
             });
 
             if (!usuario) {
@@ -307,13 +356,26 @@ const UserManagementController = {
             }
 
             const isPasswordValid = await bcrypt.compare(contraseña_actual, usuario.contraseña);
-
             if (!isPasswordValid) {
+                await AuditoriaService.registrar({
+                    mensaje: `Intento fallido de cambio de contraseña para usuario: ${usuario.nombre}`,
+                    tipo: 'SECURITY',
+                    accion: 'cambio_contraseña_fallido',
+                    usuario: req.usuario
+                });
+
                 return ApiResponse.error(res, 'Contraseña actual incorrecta', 401);
             }
 
             const nuevaContraseñaHash = await hashPassword(contraseña_nueva);
             await usuario.update({ contraseña: nuevaContraseñaHash });
+
+            await AuditoriaService.registrar({
+                mensaje: `Cambio de contraseña exitoso para usuario: ${usuario.nombre} (${usuario.correo})`,
+                tipo: 'SECURITY',
+                accion: 'cambio_contraseña_exitoso',
+                usuario: req.usuario
+            });
 
             return ApiResponse.success(res, null, 'Contraseña actualizada exitosamente');
         } catch (error) {
@@ -338,11 +400,19 @@ const UserManagementController = {
                 return ApiResponse.notFound(res, 'Usuario no encontrado');
             }
 
+            const estadoAnterior = usuario.activo;
             await usuario.update({ activo });
 
             const mensaje = activo === STATUS_ACTIVE
                 ? `Usuario ${usuario.nombre} activado exitosamente`
                 : `Usuario ${usuario.nombre} desactivado exitosamente`;
+
+            await AuditoriaService.registrar({
+                mensaje: `Usuario ${usuario.nombre} (${usuario.correo}) cambió de estado: ${estadoAnterior === STATUS_ACTIVE ? 'ACTIVO' : 'INACTIVO'} → ${activo === STATUS_ACTIVE ? 'ACTIVO' : 'INACTIVO'}`,
+                tipo: 'UPDATE',
+                accion: activo === STATUS_ACTIVE ? 'activar_usuario' : 'desactivar_usuario',
+                usuario: req.usuario
+            });
 
             return ApiResponse.success(res, {
                 id: usuario.id,

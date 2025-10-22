@@ -1,6 +1,7 @@
 ﻿const db = require('../models');
 const ApiResponse = require('../utils/response');
 const EmailService = require('../services/emailService');
+const AuditoriaService = require('../services/auditoriaService');
 
 const Empresa = db.Empresa;
 const Usuario = db.Usuario;
@@ -61,11 +62,9 @@ const EmpresaController = {
     try {
       const { rol, rolData } = req.usuario;
       const { incluir_pendientes } = req.query;
-
       const whereClause = buildWhereClause(rol, incluir_pendientes);
 
       let items;
-
       if (rol === 'administrador') {
         items = await Empresa.findAll({
           where: whereClause,
@@ -95,7 +94,6 @@ const EmpresaController = {
       const { rol, rolData } = req.usuario;
 
       const item = await Empresa.findByPk(id);
-
       if (!item) {
         return ApiResponse.notFound(res, 'Empresa no encontrada');
       }
@@ -127,6 +125,13 @@ const EmpresaController = {
 
       const newItem = await Empresa.create(empresaData);
 
+      await AuditoriaService.registrarCreacion('empresa', {
+        id: newItem.id,
+        nombre: newItem.nombre,
+        nit: newItem.nit,
+        estado: estado
+      }, req.usuario);
+
       if (rol === 'asistente') {
         const usuario = await Usuario.findByPk(usuarioId);
         await sendCompanyRegistrationEmail(usuario, newItem);
@@ -152,7 +157,6 @@ const EmpresaController = {
       }
 
       const item = await Empresa.findByPk(id);
-
       if (!item) {
         return ApiResponse.notFound(res, 'Empresa no encontrada');
       }
@@ -161,7 +165,16 @@ const EmpresaController = {
         return ApiResponse.forbidden(res, 'No tiene permisos para actualizar esta empresa');
       }
 
+      const datosAnteriores = { ...item.toJSON() };
       await item.update(req.body);
+
+      await AuditoriaService.registrarActualizacion(
+        'empresa',
+        id,
+        datosAnteriores,
+        item.toJSON(),
+        req.usuario
+      );
 
       return ApiResponse.success(res, item, 'Empresa actualizada correctamente');
     } catch (error) {
@@ -179,12 +192,13 @@ const EmpresaController = {
       }
 
       const item = await Empresa.findByPk(id);
-
       if (!item) {
         return ApiResponse.notFound(res, 'Empresa no encontrada');
       }
 
       await item.destroy();
+
+      await AuditoriaService.registrarEliminacion('empresa', id, req.usuario);
 
       return ApiResponse.success(res, null, 'Empresa eliminada correctamente');
     } catch (error) {
@@ -198,7 +212,6 @@ const EmpresaController = {
       const { rol, rolData } = req.usuario;
 
       const empresa = await Empresa.findByPk(id);
-
       if (!empresa) {
         return ApiResponse.notFound(res, 'Empresa no encontrada');
       }
@@ -253,7 +266,6 @@ const EmpresaController = {
       const { aprobar, motivo } = req.body;
 
       const empresa = await Empresa.findByPk(id);
-
       if (!empresa) {
         return ApiResponse.notFound(res, 'Empresa no encontrada');
       }
@@ -265,6 +277,13 @@ const EmpresaController = {
       const nuevoEstado = aprobar ? STATUS_ACTIVE : STATUS_REJECTED;
       await empresa.update({ estado: nuevoEstado });
 
+      await AuditoriaService.registrar({
+        mensaje: `Empresa ${empresa.nombre} ${aprobar ? 'aprobada' : 'rechazada'}${!aprobar && motivo ? `. Motivo: ${motivo}` : ''}`,
+        tipo: 'UPDATE',
+        accion: aprobar ? 'aprobar_empresa' : 'rechazar_empresa',
+        usuario: req.usuario
+      });
+
       if (empresa.id_creador) {
         const creador = await Usuario.findByPk(empresa.id_creador);
         if (creador) {
@@ -273,7 +292,6 @@ const EmpresaController = {
       }
 
       const message = aprobar ? 'Empresa aprobada exitosamente' : 'Empresa rechazada';
-
       return ApiResponse.success(res, empresa, message);
     } catch (error) {
       next(error);

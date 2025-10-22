@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Usuario, Administrador, Asistente, Ponente, AdministradorEmpresa, Empresa } = require('../models');
 const EmailService = require('../services/emailService');
+const AuditoriaService = require('../services/auditoriaService');
 
 const SALT_ROUNDS = 10;
 const ALLOWED_PUBLIC_ROLES = ['asistente', 'ponente'];
@@ -26,7 +27,6 @@ const findUserRole = async (usuarioId) => {
     const administrador = await Administrador.findOne({
         where: { id_usuario: usuarioId }
     });
-
     if (administrador) {
         return {
             rol: 'administrador',
@@ -42,7 +42,6 @@ const findUserRole = async (usuarioId) => {
             attributes: ['id', 'nombre']
         }]
     });
-
     if (adminEmpresa) {
         const rol = adminEmpresa.es_Gerente === ROLE_GERENTE ? 'gerente' : 'organizador';
         return {
@@ -58,7 +57,6 @@ const findUserRole = async (usuarioId) => {
     const ponente = await Ponente.findOne({
         where: { id_usuario: usuarioId }
     });
-
     if (ponente) {
         return {
             rol: 'ponente',
@@ -72,7 +70,6 @@ const findUserRole = async (usuarioId) => {
     const asistente = await Asistente.findOne({
         where: { id_usuario: usuarioId }
     });
-
     if (asistente) {
         return {
             rol: 'asistente',
@@ -109,7 +106,6 @@ const createRoleRecord = async (usuarioId, rol, especialidad) => {
             especialidad: especialidad || null
         });
     }
-
     return await Asistente.create({ id_usuario: usuarioId });
 };
 
@@ -133,7 +129,6 @@ const register = async (req, res) => {
         }
 
         const rolFinal = rol || 'asistente';
-
         if (!ALLOWED_PUBLIC_ROLES.includes(rolFinal)) {
             return res.status(403).json({
                 success: false,
@@ -156,7 +151,6 @@ const register = async (req, res) => {
         }
 
         const contraseñaHash = await hashPassword(contraseña);
-
         const nuevoUsuario = await Usuario.create({
             nombre,
             cedula,
@@ -168,6 +162,13 @@ const register = async (req, res) => {
 
         await createRoleRecord(nuevoUsuario.id, rolFinal, especialidad);
         await sendWelcomeEmail(nuevoUsuario.correo, nuevoUsuario.nombre, rolFinal);
+
+        await AuditoriaService.registrarCreacion('usuario', {
+            id: nuevoUsuario.id,
+            nombre: nuevoUsuario.nombre,
+            correo: nuevoUsuario.correo,
+            rol: rolFinal
+        });
 
         res.status(201).json({
             success: true,
@@ -231,7 +232,6 @@ const login = async (req, res) => {
         }
 
         const { rol, rolData } = await findUserRole(usuario.id);
-
         if (!rol) {
             return res.status(403).json({
                 success: false,
@@ -249,6 +249,11 @@ const login = async (req, res) => {
 
         const accessToken = generateAccessToken(tokenPayload);
         const refreshToken = generateRefreshToken({ id: usuario.id, correo: usuario.correo });
+
+        await AuditoriaService.registrarLogin(
+            { id: usuario.id, nombre: usuario.nombre },
+            rol
+        );
 
         res.json({
             success: true,
@@ -316,6 +321,13 @@ const promoverAGerente = async (req, res) => {
             id_usuario,
             id_empresa,
             es_Gerente: ROLE_GERENTE
+        });
+
+        await AuditoriaService.registrar({
+            mensaje: `Usuario ${usuario.nombre} promovido de asistente a gerente de ${empresa.nombre}`,
+            tipo: 'UPDATE',
+            accion: 'promover_gerente',
+            usuario: req.usuario
         });
 
         try {
@@ -396,7 +408,6 @@ const crearOrganizador = async (req, res) => {
         }
 
         const contraseñaHash = await hashPassword(contraseña);
-
         const nuevoUsuario = await Usuario.create({
             nombre,
             cedula,
@@ -411,6 +422,14 @@ const crearOrganizador = async (req, res) => {
             id_empresa,
             es_Gerente: ROLE_ORGANIZADOR
         });
+
+        await AuditoriaService.registrarCreacion('organizador', {
+            id: nuevoUsuario.id,
+            nombre: nuevoUsuario.nombre,
+            correo: nuevoUsuario.correo,
+            empresa_id: id_empresa,
+            empresa_nombre: empresa.nombre
+        }, req.usuario);
 
         try {
             await EmailService.enviarCreacionOrganizador(
@@ -477,7 +496,6 @@ const refresh = async (req, res) => {
         }
 
         const { rol, rolData } = await findUserRole(usuario.id);
-
         if (!rol) {
             return res.status(403).json({
                 success: false,
@@ -556,7 +574,6 @@ const recuperarContrasena = async (req, res) => {
         }
 
         const usuario = await Usuario.findOne({ where: { correo } });
-
         if (!usuario) {
             return res.status(404).json({
                 success: false,
@@ -566,6 +583,13 @@ const recuperarContrasena = async (req, res) => {
 
         const contraseñaHash = await hashPassword(contraseña);
         await Usuario.update({ contraseña: contraseñaHash }, { where: { correo } });
+
+        await AuditoriaService.registrar({
+            mensaje: `Recuperación de contraseña para usuario: ${usuario.nombre} (${correo})`,
+            tipo: 'SECURITY',
+            accion: 'recuperar_contraseña',
+            usuario: { id: usuario.id, nombre: usuario.nombre }
+        });
 
         res.json({
             success: true,
@@ -584,7 +608,7 @@ const recuperarContrasena = async (req, res) => {
 const crearUsuarioPorAdmin = async (req, res) => {
     try {
         const { nombre, cedula, telefono, correo, rol, especialidad, id_empresa } = req.body;
-        
+
         if (req.usuario.rol !== 'administrador') {
             return res.status(403).json({
                 success: false,
@@ -674,6 +698,16 @@ const crearUsuarioPorAdmin = async (req, res) => {
             });
         }
 
+        await AuditoriaService.registrarCreacion('usuario', {
+            id: nuevoUsuario.id,
+            nombre: nuevoUsuario.nombre,
+            cedula: nuevoUsuario.cedula,
+            correo: nuevoUsuario.correo,
+            rol: rol,
+            empresa: empresa?.nombre || null,
+            creado_por_admin: true
+        }, req.usuario);
+
         try {
             await EmailService.enviarCreacionUsuarioPorAdmin(
                 nuevoUsuario.correo,
@@ -722,7 +756,6 @@ const crearUsuarioPorAdmin = async (req, res) => {
         });
     }
 };
-
 
 module.exports = {
     login,
