@@ -160,7 +160,41 @@ const EmailService = {
         } catch (error) {
             console.error('Error enviando correo de empresa rechazada:', error);
         }
+    },
+
+    enviarCreacionUsuarioPorAdmin: async (destinatario, nombre, rol, contraseñaTemporal, creadorNombre, empresaNombre = null) => {
+        const empresaInfo = empresaNombre ? ` en **${empresaNombre}**` : '';
+        
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: `Tu cuenta de ${rol} ha sido creada`,
+            html: `
+                <h2>¡Bienvenido ${nombre}!</h2>
+                <p>El administrador <strong>${creadorNombre}</strong> ha creado una cuenta de <strong>${rol}</strong> para ti${empresaInfo}.</p>
+                
+                <h3>📧 Credenciales de acceso:</h3>
+                <ul>
+                    <li><strong>Correo:</strong> ${destinatario}</li>
+                    <li><strong>Contraseña temporal:</strong> <code>${contraseñaTemporal}</code></li>
+                </ul>
+                
+                <p><strong>⚠️ IMPORTANTE:</strong> Por seguridad, cambia tu contraseña en tu primer inicio de sesión.</p>
+                
+                <a href="${process.env.FRONTEND_URL}/login" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">
+                    Iniciar sesión ahora
+                </a>
+            `
+        };
+        
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de creación de usuario enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de creación de usuario:', error);
+        }
     }
+
 };
 
 module.exports = EmailService;

@@ -581,6 +581,149 @@ const recuperarContrasena = async (req, res) => {
     }
 };
 
+const crearUsuarioPorAdmin = async (req, res) => {
+    try {
+        const { nombre, cedula, telefono, correo, rol, especialidad, id_empresa } = req.body;
+        
+        if (req.usuario.rol !== 'administrador') {
+            return res.status(403).json({
+                success: false,
+                message: 'Solo los administradores pueden crear usuarios directamente'
+            });
+        }
+
+        const requiredFields = ['nombre', 'cedula', 'correo', 'rol'];
+        if (!validateRequiredFields(req.body, requiredFields)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Faltan campos obligatorios: nombre, cedula, correo, rol'
+            });
+        }
+
+        const rolesPermitidos = ['asistente', 'ponente', 'gerente', 'organizador'];
+        if (!rolesPermitidos.includes(rol)) {
+            return res.status(400).json({
+                success: false,
+                message: `Rol inválido. Roles permitidos: ${rolesPermitidos.join(', ')}`
+            });
+        }
+
+        if ((rol === 'gerente' || rol === 'organizador') && !id_empresa) {
+            return res.status(400).json({
+                success: false,
+                message: 'id_empresa es obligatorio para gerentes y organizadores'
+            });
+        }
+
+        let empresa = null;
+        if (id_empresa) {
+            empresa = await Empresa.findByPk(id_empresa);
+            if (!empresa) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Empresa no encontrada'
+                });
+            }
+        }
+
+        if (await isEmailTaken(correo)) {
+            return res.status(400).json({
+                success: false,
+                message: 'El correo ya está registrado'
+            });
+        }
+
+        if (await isCedulaTaken(cedula)) {
+            return res.status(400).json({
+                success: false,
+                message: 'La cédula ya está registrada'
+            });
+        }
+
+        const contraseñaTemporal = `Temp${Math.random().toString(36).slice(-8)}@${new Date().getFullYear()}`;
+        const contraseñaHash = await hashPassword(contraseñaTemporal);
+
+        const nuevoUsuario = await Usuario.create({
+            nombre,
+            cedula,
+            telefono,
+            correo,
+            contraseña: contraseñaHash,
+            activo: STATUS_ACTIVE
+        });
+
+        let rolRegistro;
+        if (rol === 'asistente') {
+            rolRegistro = await Asistente.create({ id_usuario: nuevoUsuario.id });
+        } else if (rol === 'ponente') {
+            rolRegistro = await Ponente.create({
+                id_usuario: nuevoUsuario.id,
+                especialidad: especialidad || null
+            });
+        } else if (rol === 'gerente') {
+            rolRegistro = await AdministradorEmpresa.create({
+                id_usuario: nuevoUsuario.id,
+                id_empresa,
+                es_Gerente: ROLE_GERENTE
+            });
+        } else if (rol === 'organizador') {
+            rolRegistro = await AdministradorEmpresa.create({
+                id_usuario: nuevoUsuario.id,
+                id_empresa,
+                es_Gerente: ROLE_ORGANIZADOR
+            });
+        }
+
+        try {
+            await EmailService.enviarCreacionUsuarioPorAdmin(
+                nuevoUsuario.correo,
+                nuevoUsuario.nombre,
+                rol,
+                contraseñaTemporal,
+                req.usuario.nombre,
+                empresa?.nombre
+            );
+        } catch (emailError) {
+            console.error('Error enviando correo:', emailError);
+        }
+
+        const response = {
+            id: nuevoUsuario.id,
+            nombre: nuevoUsuario.nombre,
+            cedula: nuevoUsuario.cedula,
+            telefono: nuevoUsuario.telefono,
+            correo: nuevoUsuario.correo,
+            rol,
+            creado_por: req.usuario.nombre
+        };
+
+        if (rol === 'ponente') {
+            response.especialidad = especialidad || null;
+        }
+
+        if (empresa) {
+            response.empresa = {
+                id: empresa.id,
+                nombre: empresa.nombre
+            };
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `Usuario creado exitosamente como ${rol}. Se ha enviado un correo con las credenciales.`,
+            data: response
+        });
+    } catch (error) {
+        console.error('Error al crear usuario:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error en el servidor',
+            error: error.message
+        });
+    }
+};
+
+
 module.exports = {
     login,
     register,
@@ -588,5 +731,6 @@ module.exports = {
     crearOrganizador,
     refresh,
     getProfile,
-    recuperarContrasena
+    recuperarContrasena,
+    crearUsuarioPorAdmin
 };
