@@ -84,6 +84,46 @@ const validateRequiredFields = (fields, fieldNames) => {
     return fieldNames.every(name => fields[name]);
 };
 
+const validateEmail = (correo) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(correo)) {
+        return { success: false, message: 'El correo no tiene un formato válido' };
+    }
+    return { success: true };
+};
+
+const validateCedula = (cedula) => {
+    const cedulaRegex = /^[0-9]{6,}$/; 
+    if (!cedulaRegex.test(cedula)) {
+        return { success: false, message: 'La cédula debe contener solo números y tener al menos 6 dígitos' };
+    }
+    return { success: true };
+};
+
+const validatePassword = (contraseña) => {
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!passwordRegex.test(contraseña)) {
+        return {
+            success: false,
+            message: 'La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número'
+        };
+    }
+    return { success: true };
+};
+
+const validateTelefono = (telefono) => {
+    const phoneRegex = /^\+?\d{8,15}$/;
+    if (!phoneRegex.test(telefono)) {
+        return {
+            success: false,
+            message: 'El teléfono debe tener entre 8 y 15 dígitos'
+        };
+    }
+    return { success: true };
+};
+
+
+
 const isEmailTaken = async (correo) => {
     const usuario = await Usuario.findOne({ where: { correo } });
     return !!usuario;
@@ -126,6 +166,24 @@ const register = async (req, res) => {
                 success: false,
                 message: 'Todos los campos obligatorios deben ser proporcionados'
             });
+        }
+
+        const emailValidation = validateEmail(correo);
+        if (!emailValidation.success) 
+            return res.status(400).json(emailValidation);
+
+        const cedulaValidation = validateCedula(cedula);
+        if (!cedulaValidation.success) 
+            return res.status(400).json(cedulaValidation);
+
+        const passwordValidation = validatePassword(contraseña);
+        if (!passwordValidation.success) 
+            return res.status(400).json(passwordValidation);
+
+        if (telefono) {
+            const telefonoValidation = validateTelefono(telefono);
+            if (!telefonoValidation.success) 
+            return res.status(400).json(telefonoValidation);
         }
 
         const rolFinal = rol || 'asistente';
@@ -378,6 +436,24 @@ const crearOrganizador = async (req, res) => {
             });
         }
 
+        const emailValidation = validateEmail(correo);
+        if (!emailValidation.success) 
+            return res.status(400).json(emailValidation);
+
+        const cedulaValidation = validateCedula(cedula);
+        if (!cedulaValidation.success) 
+            return res.status(400).json(cedulaValidation);
+
+        const passwordValidation = validatePassword(contraseña);
+        if (!passwordValidation.success) 
+            return res.status(400).json(passwordValidation);
+
+        if (telefono) {
+            const telefonoValidation = validateTelefono(telefono);
+            if (!telefonoValidation.success) 
+            return res.status(400).json(telefonoValidation);
+        }
+
         if (!validateGerentePermissions(req.usuario.rol, req.usuario.rolData.id_empresa, id_empresa)) {
             return res.status(403).json({
                 success: false,
@@ -573,6 +649,10 @@ const recuperarContrasena = async (req, res) => {
             });
         }
 
+        const passwordValidation = validatePassword(contraseña);
+        if (!passwordValidation.success) 
+            return res.status(400).json(passwordValidation);
+
         const usuario = await Usuario.findOne({ where: { correo } });
         if (!usuario) {
             return res.status(404).json({
@@ -622,6 +702,20 @@ const crearUsuarioPorAdmin = async (req, res) => {
                 success: false,
                 message: 'Faltan campos obligatorios: nombre, cedula, correo, rol'
             });
+        }
+
+        const emailValidation = validateEmail(correo);
+        if (!emailValidation.success) 
+            return res.status(400).json(emailValidation);
+
+        const cedulaValidation = validateCedula(cedula);
+        if (!cedulaValidation.success) 
+            return res.status(400).json(cedulaValidation)
+
+        if (telefono) {
+            const telefonoValidation = validateTelefono(telefono);
+            if (!telefonoValidation.success) 
+            return res.status(400).json(telefonoValidation);
         }
 
         const rolesPermitidos = ['asistente', 'ponente', 'gerente', 'organizador'];
