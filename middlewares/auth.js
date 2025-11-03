@@ -117,29 +117,14 @@ const isAsistenteAdministrador = async (req, res, next) => {
 };
 
 const isOrganizadorOGerente = async (req, res, next) => {
-    try {
-        const { Administrador_Empresa } = require('../models');
-
-        // Verificar que el usuario sea organizador o gerente de alguna empresa
-        const adminEmpresa = await Administrador_Empresa.findOne({
-            where: { id_usuario: req.usuario.id }
-        });
-
-        if (!adminEmpresa) {
-            return res.status(403).json({
-                success: false,
-                message: 'Acceso denegado. Debes ser Organizador o Gerente de empresa'
-            });
-        }
-
-        req.usuario.rol = adminEmpresa.es_Gerente ? 'gerente' : 'organizador';
-        next();
-    } catch (error) {
-        return res.status(500).json({
+    const rolesPermitidos = ['organizador', 'gerente'];
+    if (!rolesPermitidos.includes(req.usuario.rol)) {
+        return res.status(403).json({
             success: false,
-            message: 'Error al verificar permisos'
+            message: 'Acceso denegado. Se requiere rol de organizador o gerente'
         });
     }
+    next();
 };
 
 module.exports = {
