@@ -1,33 +1,19 @@
 const express = require('express');
-const router = express.Router({ mergeParams: true });
-const { auth, isOrganizadorOGerente } = require('../middlewares/auth');
+const router = express.Router(); 
+const { auth, isOrganizadorOGerente, isAdminGerenteOrOrganizador } = require('../middlewares/auth');
 const auditoriaMiddleware = require('../middlewares/auditoria.middleware');
 const lugarController = require('../controllers/lugar.controller');
 
-router.post(
-    '/',
-    auth,
-    isOrganizadorOGerente,
-    auditoriaMiddleware('POST'),
-    lugarController.crearLugar
-);
-
 router.get(
-    '/:empresaId',
+    '/:lugarId', 
     auth,
-    auditoriaMiddleware('GET'),
-    lugarController.obtenerLugaresEmpresa
-);
-
-router.get(
-    '/:empresaId/:lugarId',
-    auth,
+    isAdminGerenteOrOrganizador,
     auditoriaMiddleware('GET'),
     lugarController.obtenerLugarById
 );
 
 router.put(
-    '/:empresaId/:lugarId',
+    '/:lugarId', 
     auth,
     isOrganizadorOGerente,
     auditoriaMiddleware('PUT'),
@@ -35,7 +21,7 @@ router.put(
 );
 
 router.delete(
-    '/:empresaId/:lugarId',
+    '/:lugarId',
     auth,
     isOrganizadorOGerente,
     auditoriaMiddleware('DELETE'),

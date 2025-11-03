@@ -1,4 +1,4 @@
-const { Evento, Empresa, Usuario, Actividad, Inscripcion, Notificacion } = require('../models');
+const { Evento, Empresa, Usuario, Actividad, Inscripcion, Notificacion, Lugar } = require('../models');
 const AuditoriaService = require('../services/auditoriaService');
 
 const crearEvento = async (req, res) => {
@@ -40,6 +40,14 @@ const crearEvento = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: 'La fecha de fin es requerida'
+            });
+        }
+
+        if (new Date(fecha_inicio) > new Date(fecha_fin)) {
+            await transaction.rollback();
+            return res.status(400).json({
+                success: false,
+                message: 'La fecha de inicio debe ser anterior a la fecha de fin'
             });
         }
 
@@ -180,7 +188,19 @@ const obtenerEventoById = async (req, res) => {
                 },
                 {
                     model: Actividad,
-                    as: 'actividades'
+                    as: 'actividades',
+                    
+                    include: [
+                        {
+                            model: Lugar,
+                            as: 'lugares',
+                            // Seleccionamos solo los campos que quieres mostrar
+                            attributes: ['id', 'nombre'], 
+                            // Excluimos la tabla intermedia (LugarActividad)
+                            through: { attributes: [] } 
+                        }
+                    ]
+                    
                 },
                 {
                     model: Inscripcion,
@@ -220,6 +240,18 @@ const actualizarEvento = async (req, res) => {
         const eventoActualizado = req.evento;
         const camposPermitidos = ['titulo', 'descripcion', 'modalidad', 'hora', 'cupos', 'estado'];
         const actualizaciones = {};
+        const ESTADOS_PERMITIDOS = [0, 1, 2, 3]; // 0=Borrador, 1=Publicado, 2=Cancelado, 3=Finalizado
+
+        if (req.body.estado !== undefined) {
+            const estadoInt = parseInt(req.body.estado);
+            if (!ESTADOS_PERMITIDOS.includes(estadoInt)) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: `Estado no válido. Los valores permitidos son: ${ESTADOS_PERMITIDOS.join(', ')}.`
+                });
+            }
+        }
 
         camposPermitidos.forEach(campo => {
             if (req.body[campo] !== undefined) {

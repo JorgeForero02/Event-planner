@@ -1,38 +1,54 @@
 const { Lugar, Ubicacion, Empresa, LugarActividad } = require('../models');
 const AuditoriaService = require('../services/auditoriaService');
 
+const tienePermiso = (usuarioReq, idEmpresaRecurso) => {
+    if (usuarioReq.rol === 'administrador') {
+        return true;
+    }
+    if (usuarioReq.rolData.id_empresa === parseInt(idEmpresaRecurso)) {
+        return true;
+    }
+    return false;
+};
+
 const crearLugar = async (req, res) => {
     const transaction = await Lugar.sequelize.transaction();
-
     try {
-        const { empresaId, nombre, descripcion, id_ubicacion } = req.body;
+        const { empresaId } = req.params; 
+        const { nombre, descripcion, id_ubicacion } = req.body;
+
+        if (!tienePermiso(req.usuario, empresaId)) {
+            await transaction.rollback();
+            return res.status(403).json({
+                success: false,
+                message: 'No tiene permisos para crear lugares en esta empresa'
+            });
+        }
 
         if (!nombre || nombre.trim().length < 3) {
+            await transaction.rollback(); 
             return res.status(400).json({
                 success: false,
                 message: 'El nombre es requerido y debe tener al menos 3 caracteres'
             });
         }
-
         if (!id_ubicacion) {
+            await transaction.rollback(); 
             return res.status(400).json({
                 success: false,
                 message: 'La ubicación es requerida'
             });
         }
 
-        const empresa = await Empresa.findByPk(empresaId);
+        const [empresa, ubicacion] = await Promise.all([
+             Empresa.findByPk(empresaId),
+             Ubicacion.findOne({ where: { id: id_ubicacion, id_empresa: empresaId } })
+        ]);
+
         if (!empresa) {
             await transaction.rollback();
-            return res.status(404).json({
-                success: false,
-                message: 'Empresa no encontrada'
-            });
+            return res.status(404).json({ success: false, message: 'Empresa no encontrada' });
         }
-
-        const ubicacion = await Ubicacion.findOne({
-            where: { id: id_ubicacion, id_empresa: empresaId }
-        });
         if (!ubicacion) {
             await transaction.rollback();
             return res.status(404).json({
@@ -56,17 +72,10 @@ const crearLugar = async (req, res) => {
         });
 
         await transaction.commit();
-
         res.status(201).json({
             success: true,
             message: 'Lugar creado exitosamente',
-            data: {
-                id: lugar.id,
-                nombre: lugar.nombre,
-                descripcion: lugar.descripcion,
-                id_ubicacion: lugar.id_ubicacion,
-                id_empresa: lugar.id_empresa
-            }
+            data: lugar
         });
 
     } catch (error) {
@@ -94,13 +103,11 @@ const obtenerLugaresEmpresa = async (req, res) => {
 
         const lugares = await Lugar.findAll({
             where: { id_empresa: empresaId },
-            include: [
-                {
-                    model: Ubicacion,
-                    as: 'ubicacion',
-                    attributes: ['id', 'direccion', 'lugar', 'capacidad']
-                }
-            ],
+            include: [{
+                model: Ubicacion,
+                as: 'ubicacion',
+                attributes: ['id', 'direccion', 'lugar', 'capacidad']
+            }],
             order: [['nombre', 'ASC']]
         });
 
@@ -123,7 +130,7 @@ const obtenerLugaresEmpresa = async (req, res) => {
 
 const obtenerLugarById = async (req, res) => {
     try {
-        const { lugarId } = req.params;
+        const { lugarId } = req.params; 
 
         const lugar = await Lugar.findByPk(lugarId, {
             include: [
@@ -165,12 +172,12 @@ const obtenerLugarById = async (req, res) => {
 
 const actualizarLugar = async (req, res) => {
     const transaction = await Lugar.sequelize.transaction();
-
     try {
-        const { lugarId } = req.params;
+        const { lugarId } = req.params; 
         const { nombre, descripcion } = req.body;
 
-        const lugar = await Lugar.findByPk(lugarId);
+        const lugar = await Lugar.findByPk(lugarId, { transaction });
+
         if (!lugar) {
             await transaction.rollback();
             return res.status(404).json({
@@ -178,9 +185,17 @@ const actualizarLugar = async (req, res) => {
                 message: 'Lugar no encontrado'
             });
         }
-
+        
+        if (!tienePermiso(req.usuario, lugar.id_empresa)) {
+            await transaction.rollback();
+            return res.status(403).json({
+                success: false,
+                message: 'No tiene permisos para modificar este lugar'
+            });
+        }
+        
         const actualizaciones = {};
-        if (nombre) actualizaciones.nombre = nombre;
+        if (nombre !== undefined) actualizaciones.nombre = nombre;
         if (descripcion !== undefined) actualizaciones.descripcion = descripcion;
 
         await lugar.update(actualizaciones, { transaction });
@@ -193,7 +208,6 @@ const actualizarLugar = async (req, res) => {
         });
 
         await transaction.commit();
-
         res.json({
             success: true,
             message: 'Lugar actualizado exitosamente',
@@ -213,11 +227,11 @@ const actualizarLugar = async (req, res) => {
 
 const eliminarLugar = async (req, res) => {
     const transaction = await Lugar.sequelize.transaction();
-
     try {
-        const { lugarId } = req.params;
+        const { lugarId } = req.params; 
 
-        const lugar = await Lugar.findByPk(lugarId);
+        const lugar = await Lugar.findByPk(lugarId, { transaction });
+
         if (!lugar) {
             await transaction.rollback();
             return res.status(404).json({
@@ -225,9 +239,18 @@ const eliminarLugar = async (req, res) => {
                 message: 'Lugar no encontrado'
             });
         }
+        
+        if (!tienePermiso(req.usuario, lugar.id_empresa)) {
+            await transaction.rollback();
+            return res.status(403).json({
+                success: false,
+                message: 'No tiene permisos para eliminar este lugar'
+            });
+        }
 
         const lugarEnActividades = await LugarActividad.findOne({
-            where: { id_lugar: lugarId }
+            where: { id_lugar: lugarId },
+            transaction
         });
 
         if (lugarEnActividades) {
@@ -248,7 +271,6 @@ const eliminarLugar = async (req, res) => {
         });
 
         await transaction.commit();
-
         res.json({
             success: true,
             message: 'Lugar eliminado exitosamente'

@@ -11,5 +11,6 @@ router.use('/eventos', require('./evento.routes'));
 router.use('/actividades', require('./actividad.routes'));
 router.use('/lugares', require('./lugar.routes'));
 router.use('/ubicaciones', require('./ubicacion.routes'));
+router.use('/inscripciones', require('./inscripcion.routes'));
 
 module.exports = router;

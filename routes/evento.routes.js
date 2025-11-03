@@ -8,6 +8,8 @@ const {
 } = require('../middlewares/verificarPermisos');
 const eventoController = require('../controllers/evento.controller');
 
+const actividadController = require('../controllers/actividad.controller');
+
 // POST - Crear evento
 router.post('/', auth, isOrganizadorOGerente, verificarPermisoEvento, auditoriaMiddleware('POST'), eventoController.crearEvento);
 
@@ -24,5 +26,21 @@ router.put('/:eventoId', auth, isOrganizadorOGerente, verificarPermisoEdicionEve
 // DELETE - Eliminar evento (cancelar)
 router.delete('/:eventoId', auth, isOrganizadorOGerente, verificarPermisoEdicionEvento, auditoriaMiddleware('DELETE'), eventoController.eliminarEvento);
 
+// --- RUTAS ANIDADAS PARA ACTIVIDADES ---
+router.post(
+    '/:eventoId/actividades',
+    auth,
+    isOrganizadorOGerente,
+    verificarPermisoEdicionEvento, 
+    auditoriaMiddleware('POST'),
+    actividadController.crearActividad
+);
+
+router.get(
+    '/:eventoId/actividades',
+    auth,
+    auditoriaMiddleware('GET'),
+    actividadController.obtenerActividadesEvento
+);
 
 module.exports = router;

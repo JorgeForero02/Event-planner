@@ -47,6 +47,12 @@ Lugar.belongsTo(Ubicacion, { foreignKey: 'id_ubicacion', as: 'ubicacion' });
 Evento.hasMany(Actividad, { foreignKey: 'id_evento', as: 'actividades' });
 Actividad.belongsTo(Evento, { foreignKey: 'id_evento', as: 'evento' });
 
+Empresa.hasMany(Ubicacion, { foreignKey: 'id_empresa', as: 'ubicaciones' });
+Ubicacion.belongsTo(Empresa, { foreignKey: 'id_empresa', as: 'empresa' });
+
+Empresa.hasMany(Lugar, { foreignKey: 'id_empresa', as: 'lugares' });
+Lugar.belongsTo(Empresa, { foreignKey: 'id_empresa', as: 'empresa' });
+
 Actividad.belongsToMany(Lugar, {
   through: LugarActividad,
   foreignKey: 'id_actividad',

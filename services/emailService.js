@@ -162,6 +162,87 @@ const EmailService = {
         }
     },
 
+    enviarConfirmacionInscripcion: async (
+        destinatario,
+        nombreUsuario,
+        nombreEvento,
+        fechaEvento,
+        codigoInscripcion
+    ) => {
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: `¡Confirmación de inscripción: ${nombreEvento}!`,
+            html: `
+        <h2>¡Hola ${nombreUsuario}!</h2>
+        <p>Has completado exitosamente tu inscripción para el evento:</p>
+        <h3 style="color: #007bff;">${nombreEvento}</h3>
+        
+        <p><strong>Detalles del Evento:</strong></p>
+        <ul>
+          <li><strong>Fecha:</strong> ${fechaEvento}</li>
+          <li><strong>Código de Inscripción:</strong> <code>${codigoInscripcion}</code></li>
+        </ul>
+        
+        <p>Guarda este correo, ya que contiene tu código de inscripción, el cual podría ser solicitado para verificar tu asistencia.</p>
+        <p>¡Esperamos verte allí!</p>
+        <br>
+        <p>Atentamente,<br>El equipo de Event Planner</p>
+      `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de confirmación de inscripción enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de confirmación de inscripción:', error);
+        }
+    },
+
+    enviarInvitacionInscripcion: async (
+        destinatario,
+        nombreUsuario,
+        nombreGerente,
+        nombreEvento,
+        codigoConfirmacion
+    ) => {
+        // En producción, esto debería ser la URL del frontend
+        // Por ahora, apuntará directamente a la API para la prueba
+        const urlConfirmacion = `${process.env.BASE_URL || 'http://localhost:3000'}/api/inscripciones/confirmar/${codigoConfirmacion}`;
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: `¡Has sido invitado al evento: ${nombreEvento}!`,
+            html: `
+        <h2>¡Hola ${nombreUsuario}!</h2>
+        <p>Tu gerente/organizador, <strong>${nombreGerente}</strong>, te ha pre-inscrito en el siguiente evento:</p>
+        <h3 style="color: #007bff;">${nombreEvento}</h3>
+        
+        <p>Tu inscripción está actualmente <strong>Pendiente</strong>. Por favor, haz clic en el siguiente enlace para confirmar tu asistencia:</p>
+        
+        <a href="${urlConfirmacion}" style="display: inline-block; padding: 12px 20px; margin: 15px 0; font-size: 16px; color: white; background-color: #28a745; text-decoration: none; border-radius: 5px;">
+            Confirmar mi Asistencia
+        </a>
+        
+        <p>Si no puedes hacer clic en el botón, copia y pega esta URL en tu navegador:</p>
+        <p><code>${urlConfirmacion}</code></p>
+        
+        <p>Si no deseas asistir, simplemente ignora este correo.</p>
+        <br>
+        <p>Atentamente,<br>El equipo de Event Planner</p>
+      `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de invitación de inscripción enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de invitación de inscripción:', error);
+            throw error; // Lanzamos el error para que el controlador decida qué hacer
+        }
+    },
+
     enviarCreacionUsuarioPorAdmin: async (destinatario, nombre, rol, contraseñaTemporal, creadorNombre, empresaNombre = null) => {
         const empresaInfo = empresaNombre ? ` en **${empresaNombre}**` : '';
         
