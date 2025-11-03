@@ -5,8 +5,7 @@ const crearLugar = async (req, res) => {
     const transaction = await Lugar.sequelize.transaction();
 
     try {
-        const { empresaId } = req.params;
-        const { nombre, descripcion, id_ubicacion } = req.body;
+        const { id_empresa, nombre, descripcion, id_ubicacion } = req.body;
 
         if (!nombre || nombre.trim().length < 3) {
             return res.status(400).json({

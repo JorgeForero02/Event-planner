@@ -13,21 +13,21 @@ router.post(
 );
 
 router.get(
-    '/',
+    '/:empresaId',
     auth,
     auditoriaMiddleware('GET'),
     lugarController.obtenerLugaresEmpresa
 );
 
 router.get(
-    '/:lugarId',
+    '/:empresaId/:lugarId',
     auth,
     auditoriaMiddleware('GET'),
     lugarController.obtenerLugarById
 );
 
 router.put(
-    '/:lugarId',
+    '/:empresaId/:lugarId',
     auth,
     isOrganizadorOGerente,
     auditoriaMiddleware('PUT'),
@@ -35,7 +35,7 @@ router.put(
 );
 
 router.delete(
-    '/:lugarId',
+    '/:empresaId/:lugarId',
     auth,
     isOrganizadorOGerente,
     auditoriaMiddleware('DELETE'),
