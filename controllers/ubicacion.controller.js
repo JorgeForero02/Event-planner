@@ -5,8 +5,7 @@ const crearUbicacion = async (req, res) => {
     const transaction = await Ubicacion.sequelize.transaction();
 
     try {
-        const { empresaId } = req.params;
-        const { lugar, direccion, capacidad, descripcion, id_ciudad } = req.body;
+        const { empresaId, lugar, direccion, capacidad, descripcion, id_ciudad } = req.body;
 
         if (!direccion || direccion.trim().length < 3) {
             return res.status(400).json({
@@ -23,6 +22,7 @@ const crearUbicacion = async (req, res) => {
         }
 
         const empresa = await Empresa.findByPk(empresaId);
+        console.log('Empresa encontrada:', empresa);
         if (!empresa) {
             await transaction.rollback();
             return res.status(404).json({
