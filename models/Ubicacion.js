@@ -7,6 +7,14 @@ const Ubicacion = sequelize.define('Ubicacion', {
     primaryKey: true,
     autoIncrement: true
   },
+  id_empresa: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Empresa',
+      key: 'id'
+    }
+  },
   lugar: {
     type: DataTypes.STRING(150),
     allowNull: true
@@ -25,7 +33,11 @@ const Ubicacion = sequelize.define('Ubicacion', {
   },
   id_ciudad: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    references: {
+      model: 'Ciudad',
+      key: 'id'
+    }
   }
 }, {
   tableName: 'Ubicacion',

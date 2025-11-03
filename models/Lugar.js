@@ -7,13 +7,31 @@ const Lugar = sequelize.define('Lugar', {
     primaryKey: true,
     autoIncrement: true
   },
+  id_empresa: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Empresa',
+      key: 'id'
+    }
+  },
   id_ubicacion: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    references: {
+      model: 'Ubicacion',
+      key: 'id'
+    }
   },
   nombre: {
     type: DataTypes.STRING(150),
-    allowNull: false
+    allowNull: false,
+    validate: {
+      len: {
+        args: [3, 150],
+        msg: 'El nombre debe tener entre 3 y 150 caracteres'
+      }
+    }
   },
   descripcion: {
     type: DataTypes.TEXT,

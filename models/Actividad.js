@@ -9,7 +9,13 @@ const Actividad = sequelize.define('Actividad', {
   },
   titulo: {
     type: DataTypes.STRING(200),
-    allowNull: false
+    allowNull: false,
+    validate: {
+      len: {
+        args: [3, 200],
+        msg: 'El título debe tener entre 3 y 200 caracteres'
+      }
+    }
   },
   hora_inicio: {
     type: DataTypes.TIME,
@@ -27,9 +33,22 @@ const Actividad = sequelize.define('Actividad', {
     type: DataTypes.DATEONLY,
     allowNull: false
   },
+  url: {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+    validate: {
+      isUrl: {
+        msg: 'La URL debe ser válida'
+      }
+    }
+  },
   id_evento: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    references: {
+      model: 'Evento',
+      key: 'id'
+    }
   }
 }, {
   tableName: 'Actividad',

@@ -97,6 +97,16 @@ Ciudad.hasMany(Empresa, { foreignKey: 'id_ciudad', as: 'empresas' });
 Empresa.belongsTo(Usuario, { foreignKey: 'id_creador', as: 'creador' });
 Usuario.hasMany(Empresa, { foreignKey: 'id_creador', as: 'empresasCreadas' });
 
+
+// Relaciones con Evento
+Evento.belongsTo(Empresa, { foreignKey: 'id_empresa', as: 'empresa' });
+Evento.belongsTo(Usuario, { foreignKey: 'id_creador', as: 'creador' });
+
+// Relaciones inversas
+Empresa.hasMany(Evento, { foreignKey: 'id_empresa', as: 'eventos' });
+Usuario.hasMany(Evento, { foreignKey: 'id_creador', as: 'eventosCreados' });
+
+
 const db = {
   sequelize,
   Sequelize: require('sequelize'),
