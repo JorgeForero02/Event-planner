@@ -124,11 +124,32 @@ const crearEvento = async (req, res) => {
 const obtenerEventos = async (req, res) => {
     try {
         const { id_empresa, estado, modalidad } = req.query;
+        const usuario = req.usuario;
         const { Op } = require('sequelize');
-
         const where = {};
+
         if (id_empresa) where.id_empresa = id_empresa;
-        if (estado !== undefined) where.estado = estado;
+        if (usuario.rol === 'gerente' || usuario.rol === 'organizador') {
+        where.id_empresa = usuario.rolData.id_empresa;
+        if (id_empresa && parseInt(id_empresa) !== usuario.rolData.id_empresa) {
+        return res.status(403).json({ success: false, message: "No puede ver eventos de otra empresa." });
+        }
+    } 
+
+        else if (usuario.rol === 'administrador') {
+        if (id_empresa) where.id_empresa = id_empresa;
+    } 
+        else {
+        where.estado = 1; 
+        if (id_empresa) where.id_empresa = id_empresa;
+    }
+        if (estado !== undefined) {
+        if (usuario.rol === 'administrador') {
+         where.estado = estado;
+        } else {
+         where.estado = 1; 
+            }
+    }
         if (modalidad) where.modalidad = modalidad;
 
         const eventos = await Evento.findAll({
@@ -173,8 +194,36 @@ const obtenerEventos = async (req, res) => {
 const obtenerEventoById = async (req, res) => {
     try {
         const { eventoId } = req.params;
+        const usuario = req.usuario;
+        const { id_empresa, estado, modalidad } = req.query;
+        const { Op } = require('sequelize');
 
-        const evento = await Evento.findByPk(eventoId, {
+        const where = { id: eventoId };
+
+        if (usuario.rol === 'gerente' || usuario.rol === 'organizador') {
+            where.id_empresa = usuario.rolData.id_empresa;
+            if (id_empresa && parseInt(id_empresa) !== usuario.rolData.id_empresa) {
+                return res.status(403).json({ success: false, message: "No puede ver eventos de otra empresa." });
+            }
+        } else if (usuario.rol === 'administrador') {
+            if (id_empresa) where.id_empresa = id_empresa;
+        } else {
+            where.estado = 1;
+            if (id_empresa) where.id_empresa = id_empresa;
+        }
+
+        if (estado !== undefined) {
+            if (usuario.rol === 'administrador') {
+                where.estado = estado;
+            } else {
+                where.estado = 1;
+            }
+        }
+
+        if (modalidad) where.modalidad = modalidad;
+
+        const evento = await Evento.findOne({
+            where,
             include: [
                 {
                     model: Empresa,
@@ -189,18 +238,14 @@ const obtenerEventoById = async (req, res) => {
                 {
                     model: Actividad,
                     as: 'actividades',
-                    
                     include: [
                         {
                             model: Lugar,
                             as: 'lugares',
-                            // Seleccionamos solo los campos que quieres mostrar
-                            attributes: ['id', 'nombre'], 
-                            // Excluimos la tabla intermedia (LugarActividad)
-                            through: { attributes: [] } 
+                            attributes: ['id', 'nombre'],
+                            through: { attributes: [] }
                         }
                     ]
-                    
                 },
                 {
                     model: Inscripcion,
@@ -213,7 +258,7 @@ const obtenerEventoById = async (req, res) => {
         if (!evento) {
             return res.status(404).json({
                 success: false,
-                message: 'Evento no encontrado'
+                message: 'Evento no encontrado o no tiene permisos para verlo'
             });
         }
 
