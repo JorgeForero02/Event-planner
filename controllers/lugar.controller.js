@@ -1,296 +1,260 @@
-const { Lugar, Ubicacion, Empresa, LugarActividad } = require('../models');
+const LugarService = require('../services/lugar.service');
+const LugarValidator = require('../validators/lugar.validator');
+const PermisosService = require('../services/permisos.service');
 const AuditoriaService = require('../services/auditoriaService');
+const { MENSAJES } = require('../constants/lugar.constants');
 
-const tienePermiso = (usuarioReq, idEmpresaRecurso) => {
-    if (usuarioReq.rol === 'administrador') {
-        return true;
+class LugarController {
+    async crearLugar(req, res) {
+        const transaction = await LugarService.crearTransaccion();
+
+        try {
+            const { empresaId } = req.params;
+            const { nombre, descripcion, id_ubicacion } = req.body;
+            const usuario = req.usuario;
+
+            const tienePermiso = PermisosService.verificarAccesoEmpresa(
+                usuario.rol,
+                usuario.rolData?.id_empresa,
+                empresaId
+            );
+
+            if (!tienePermiso) {
+                await transaction.rollback();
+                return res.status(403).json({
+                    success: false,
+                    message: MENSAJES.SIN_PERMISO_CREAR
+                });
+            }
+
+            const validacion = await LugarValidator.validarCreacion(
+                { nombre, descripcion, id_ubicacion },
+                empresaId
+            );
+
+            if (!validacion.esValida) {
+                await transaction.rollback();
+                return res.status(validacion.codigoEstado || 400).json({
+                    success: false,
+                    message: validacion.mensaje
+                });
+            }
+
+            const resultado = await LugarService.crear({
+                id_empresa: empresaId,
+                nombre,
+                descripcion,
+                id_ubicacion
+            }, transaction);
+
+            await AuditoriaService.registrar({
+                mensaje: `Se creó el lugar: ${nombre} para empresa ${resultado.empresa.nombre}`,
+                tipo: 'POST',
+                accion: 'crear_lugar',
+                usuario: { id: usuario.id, nombre: usuario.nombre }
+            });
+
+            await transaction.commit();
+
+            return res.status(201).json({
+                success: true,
+                message: MENSAJES.CREADO,
+                data: resultado.lugar
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('Error al crear lugar:', error);
+            return res.status(500).json({
+                success: false,
+                message: MENSAJES.ERROR_CREAR,
+                error: error.message
+            });
+        }
     }
-    if (usuarioReq.rolData.id_empresa === parseInt(idEmpresaRecurso)) {
-        return true;
+
+    async obtenerLugaresEmpresa(req, res) {
+        try {
+            const { empresaId } = req.params;
+
+            const resultado = await LugarService.obtenerPorEmpresa(empresaId);
+
+            if (!resultado.exito) {
+                return res.status(404).json({
+                    success: false,
+                    message: resultado.mensaje
+                });
+            }
+
+            return res.json({
+                success: true,
+                message: MENSAJES.LISTA_OBTENIDA,
+                total: resultado.lugares.length,
+                data: resultado.lugares
+            });
+        } catch (error) {
+            console.error('Error al obtener lugares:', error);
+            return res.status(500).json({
+                success: false,
+                message: MENSAJES.ERROR_OBTENER,
+                error: error.message
+            });
+        }
     }
-    return false;
-};
 
-const crearLugar = async (req, res) => {
-    const transaction = await Lugar.sequelize.transaction();
-    try {
-        const { empresaId } = req.params; 
-        const { nombre, descripcion, id_ubicacion } = req.body;
+    async obtenerLugarById(req, res) {
+        try {
+            const { lugarId } = req.params;
 
-        if (!tienePermiso(req.usuario, empresaId)) {
-            await transaction.rollback();
-            return res.status(403).json({
+            const lugar = await LugarService.buscarPorId(lugarId);
+
+            if (!lugar) {
+                return res.status(404).json({
+                    success: false,
+                    message: MENSAJES.NO_ENCONTRADO
+                });
+            }
+
+            return res.json({
+                success: true,
+                message: MENSAJES.OBTENIDO,
+                data: lugar
+            });
+        } catch (error) {
+            console.error('Error al obtener lugar:', error);
+            return res.status(500).json({
                 success: false,
-                message: 'No tiene permisos para crear lugares en esta empresa'
+                message: MENSAJES.ERROR_OBTENER,
+                error: error.message
             });
         }
-
-        if (!nombre || nombre.trim().length < 3) {
-            await transaction.rollback(); 
-            return res.status(400).json({
-                success: false,
-                message: 'El nombre es requerido y debe tener al menos 3 caracteres'
-            });
-        }
-        if (!id_ubicacion) {
-            await transaction.rollback(); 
-            return res.status(400).json({
-                success: false,
-                message: 'La ubicación es requerida'
-            });
-        }
-
-        const [empresa, ubicacion] = await Promise.all([
-             Empresa.findByPk(empresaId),
-             Ubicacion.findOne({ where: { id: id_ubicacion, id_empresa: empresaId } })
-        ]);
-
-        if (!empresa) {
-            await transaction.rollback();
-            return res.status(404).json({ success: false, message: 'Empresa no encontrada' });
-        }
-        if (!ubicacion) {
-            await transaction.rollback();
-            return res.status(404).json({
-                success: false,
-                message: 'Ubicación no encontrada o no pertenece a esta empresa'
-            });
-        }
-
-        const lugar = await Lugar.create({
-            id_empresa: empresaId,
-            nombre,
-            descripcion,
-            id_ubicacion
-        }, { transaction });
-
-        await AuditoriaService.registrar({
-            mensaje: `Se creó el lugar: ${nombre} para empresa ${empresa.nombre}`,
-            tipo: 'POST',
-            accion: 'crear_lugar',
-            usuario: { id: req.usuario.id, nombre: req.usuario.nombre }
-        });
-
-        await transaction.commit();
-        res.status(201).json({
-            success: true,
-            message: 'Lugar creado exitosamente',
-            data: lugar
-        });
-
-    } catch (error) {
-        await transaction.rollback();
-        console.error('Error al crear lugar:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al crear el lugar',
-            error: error.message
-        });
     }
-};
 
-const obtenerLugaresEmpresa = async (req, res) => {
-    try {
-        const { empresaId } = req.params;
+    async actualizarLugar(req, res) {
+        const transaction = await LugarService.crearTransaccion();
 
-        const empresa = await Empresa.findByPk(empresaId);
-        if (!empresa) {
-            return res.status(404).json({
+        try {
+            const { lugarId } = req.params;
+            const { nombre, descripcion } = req.body;
+            const usuario = req.usuario;
+
+            const lugar = await LugarService.buscarPorId(lugarId, transaction);
+
+            if (!lugar) {
+                await transaction.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: MENSAJES.NO_ENCONTRADO
+                });
+            }
+
+            const tienePermiso = PermisosService.verificarAccesoEmpresa(
+                usuario.rol,
+                usuario.rolData?.id_empresa,
+                lugar.id_empresa
+            );
+
+            if (!tienePermiso) {
+                await transaction.rollback();
+                return res.status(403).json({
+                    success: false,
+                    message: MENSAJES.SIN_PERMISO_MODIFICAR
+                });
+            }
+
+            const actualizaciones = LugarService.construirActualizaciones({ nombre, descripcion });
+            await lugar.update(actualizaciones, { transaction });
+
+            await AuditoriaService.registrar({
+                mensaje: `Se actualizó el lugar: ${lugar.nombre}`,
+                tipo: 'PUT',
+                accion: 'actualizar_lugar',
+                usuario: { id: usuario.id, nombre: usuario.nombre }
+            });
+
+            await transaction.commit();
+
+            return res.json({
+                success: true,
+                message: MENSAJES.ACTUALIZADO,
+                data: lugar
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('Error al actualizar lugar:', error);
+            return res.status(500).json({
                 success: false,
-                message: 'Empresa no encontrada'
+                message: MENSAJES.ERROR_ACTUALIZAR,
+                error: error.message
             });
         }
-
-        const lugares = await Lugar.findAll({
-            where: { id_empresa: empresaId },
-            include: [{
-                model: Ubicacion,
-                as: 'ubicacion',
-                attributes: ['id', 'direccion', 'lugar', 'capacidad']
-            }],
-            order: [['nombre', 'ASC']]
-        });
-
-        res.json({
-            success: true,
-            message: 'Lugares obtenidos exitosamente',
-            total: lugares.length,
-            data: lugares
-        });
-
-    } catch (error) {
-        console.error('Error al obtener lugares:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al obtener lugares',
-            error: error.message
-        });
     }
-};
 
-const obtenerLugarById = async (req, res) => {
-    try {
-        const { lugarId } = req.params; 
+    async eliminarLugar(req, res) {
+        const transaction = await LugarService.crearTransaccion();
 
-        const lugar = await Lugar.findByPk(lugarId, {
-            include: [
-                {
-                    model: Ubicacion,
-                    as: 'ubicacion',
-                    attributes: ['id', 'direccion', 'lugar', 'capacidad', 'id_empresa']
-                },
-                {
-                    model: Empresa,
-                    as: 'empresa',
-                    attributes: ['id', 'nombre']
-                }
-            ]
-        });
+        try {
+            const { lugarId } = req.params;
+            const usuario = req.usuario;
 
-        if (!lugar) {
-            return res.status(404).json({
+            const lugar = await LugarService.buscarPorId(lugarId, transaction);
+
+            if (!lugar) {
+                await transaction.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: MENSAJES.NO_ENCONTRADO
+                });
+            }
+
+            const tienePermiso = PermisosService.verificarAccesoEmpresa(
+                usuario.rol,
+                usuario.rolData?.id_empresa,
+                lugar.id_empresa
+            );
+
+            if (!tienePermiso) {
+                await transaction.rollback();
+                return res.status(403).json({
+                    success: false,
+                    message: MENSAJES.SIN_PERMISO_ELIMINAR
+                });
+            }
+
+            const tieneActividades = await LugarService.verificarActividadesAsociadas(lugarId, transaction);
+
+            if (tieneActividades) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: MENSAJES.TIENE_ACTIVIDADES_ASOCIADAS
+                });
+            }
+
+            await lugar.destroy({ transaction });
+
+            await AuditoriaService.registrar({
+                mensaje: `Se eliminó el lugar: ${lugar.nombre}`,
+                tipo: 'DELETE',
+                accion: 'eliminar_lugar',
+                usuario: { id: usuario.id, nombre: usuario.nombre }
+            });
+
+            await transaction.commit();
+
+            return res.json({
+                success: true,
+                message: MENSAJES.ELIMINADO
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('Error al eliminar lugar:', error);
+            return res.status(500).json({
                 success: false,
-                message: 'Lugar no encontrado'
+                message: MENSAJES.ERROR_ELIMINAR,
+                error: error.message
             });
         }
-
-        res.json({
-            success: true,
-            message: 'Lugar obtenido exitosamente',
-            data: lugar
-        });
-
-    } catch (error) {
-        console.error('Error al obtener lugar:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al obtener lugar',
-            error: error.message
-        });
     }
-};
+}
 
-const actualizarLugar = async (req, res) => {
-    const transaction = await Lugar.sequelize.transaction();
-    try {
-        const { lugarId } = req.params; 
-        const { nombre, descripcion } = req.body;
-
-        const lugar = await Lugar.findByPk(lugarId, { transaction });
-
-        if (!lugar) {
-            await transaction.rollback();
-            return res.status(404).json({
-                success: false,
-                message: 'Lugar no encontrado'
-            });
-        }
-        
-        if (!tienePermiso(req.usuario, lugar.id_empresa)) {
-            await transaction.rollback();
-            return res.status(403).json({
-                success: false,
-                message: 'No tiene permisos para modificar este lugar'
-            });
-        }
-        
-        const actualizaciones = {};
-        if (nombre !== undefined) actualizaciones.nombre = nombre;
-        if (descripcion !== undefined) actualizaciones.descripcion = descripcion;
-
-        await lugar.update(actualizaciones, { transaction });
-
-        await AuditoriaService.registrar({
-            mensaje: `Se actualizó el lugar: ${lugar.nombre}`,
-            tipo: 'PUT',
-            accion: 'actualizar_lugar',
-            usuario: { id: req.usuario.id, nombre: req.usuario.nombre }
-        });
-
-        await transaction.commit();
-        res.json({
-            success: true,
-            message: 'Lugar actualizado exitosamente',
-            data: lugar
-        });
-
-    } catch (error) {
-        await transaction.rollback();
-        console.error('Error al actualizar lugar:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al actualizar lugar',
-            error: error.message
-        });
-    }
-};
-
-const eliminarLugar = async (req, res) => {
-    const transaction = await Lugar.sequelize.transaction();
-    try {
-        const { lugarId } = req.params; 
-
-        const lugar = await Lugar.findByPk(lugarId, { transaction });
-
-        if (!lugar) {
-            await transaction.rollback();
-            return res.status(404).json({
-                success: false,
-                message: 'Lugar no encontrado'
-            });
-        }
-        
-        if (!tienePermiso(req.usuario, lugar.id_empresa)) {
-            await transaction.rollback();
-            return res.status(403).json({
-                success: false,
-                message: 'No tiene permisos para eliminar este lugar'
-            });
-        }
-
-        const lugarEnActividades = await LugarActividad.findOne({
-            where: { id_lugar: lugarId },
-            transaction
-        });
-
-        if (lugarEnActividades) {
-            await transaction.rollback();
-            return res.status(400).json({
-                success: false,
-                message: 'No se puede eliminar un lugar que tiene actividades asociadas'
-            });
-        }
-
-        await lugar.destroy({ transaction });
-
-        await AuditoriaService.registrar({
-            mensaje: `Se eliminó el lugar: ${lugar.nombre}`,
-            tipo: 'DELETE',
-            accion: 'eliminar_lugar',
-            usuario: { id: req.usuario.id, nombre: req.usuario.nombre }
-        });
-
-        await transaction.commit();
-        res.json({
-            success: true,
-            message: 'Lugar eliminado exitosamente'
-        });
-
-    } catch (error) {
-        await transaction.rollback();
-        console.error('Error al eliminar lugar:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al eliminar lugar',
-            error: error.message
-        });
-    }
-};
-
-module.exports = {
-    crearLugar,
-    obtenerLugaresEmpresa,
-    obtenerLugarById,
-    actualizarLugar,
-    eliminarLugar
-};
+module.exports = new LugarController();

@@ -1,138 +1,20 @@
-const { Usuario, Administrador, Asistente, Ponente, AdministradorEmpresa, Empresa } = require('../models');
-const bcrypt = require('bcryptjs');
-const ApiResponse = require('../utils/response');
+const UsuarioService = require('../services/usuario.service');
+const UsuarioValidator = require('../validators/usuario.validator');
+const PermisosService = require('../services/permisos.service');
 const AuditoriaService = require('../services/auditoriaService');
+const ApiResponse = require('../utils/response');
+const { MENSAJES } = require('../constants/usuario.constants');
 
-const SALT_ROUNDS = 10;
-const STATUS_ACTIVE = 1;
-
-const findCompleteUserRole = async (usuarioId) => {
-    const administrador = await Administrador.findOne({
-        where: { id_usuario: usuarioId }
-    });
-    if (administrador) {
-        return {
-            rol: 'administrador',
-            rol_id: administrador.id,
-            rol_data: null
-        };
-    }
-
-    const adminEmpresa = await AdministradorEmpresa.findOne({
-        where: { id_usuario: usuarioId },
-        include: [{
-            model: Empresa,
-            as: 'empresa',
-            attributes: ['id', 'nombre']
-        }]
-    });
-    if (adminEmpresa) {
-        const isGerente = adminEmpresa.es_Gerente === 1;
-        return {
-            rol: isGerente ? 'gerente' : 'organizador',
-            rol_id: adminEmpresa.id,
-            rol_data: {
-                empresa_id: adminEmpresa.id_empresa,
-                empresa_nombre: adminEmpresa.empresa?.nombre,
-                es_gerente: isGerente
-            }
-        };
-    }
-
-    const ponente = await Ponente.findOne({
-        where: { id_usuario: usuarioId }
-    });
-    if (ponente) {
-        return {
-            rol: 'ponente',
-            rol_id: ponente.id_ponente,
-            rol_data: {
-                especialidad: ponente.especialidad
-            }
-        };
-    }
-
-    const asistente = await Asistente.findOne({
-        where: { id_usuario: usuarioId }
-    });
-    if (asistente) {
-        return {
-            rol: 'asistente',
-            rol_id: asistente.id_asistente,
-            rol_data: null
-        };
-    }
-
-    return {
-        rol: null,
-        rol_id: null,
-        rol_data: null
-    };
-};
-
-const createUserRole = async (usuarioId, rol, roleData) => {
-    const roleCreators = {
-        administrador: () => Administrador.create({ id_usuario: usuarioId }),
-        ponente: () => Ponente.create({
-            id_usuario: usuarioId,
-            especialidad: roleData?.especialidad || null
-        }),
-        asistente: () => Asistente.create({ id_usuario: usuarioId }),
-        organizador: () => AdministradorEmpresa.create({
-            id_usuario: usuarioId,
-            id_empresa: roleData.empresa_id,
-            es_Gerente: 0
-        }),
-        gerente: () => AdministradorEmpresa.create({
-            id_usuario: usuarioId,
-            id_empresa: roleData.empresa_id,
-            es_Gerente: 1
-        })
-    };
-
-    const creator = roleCreators[rol];
-    if (!creator) {
-        throw new Error('Rol no válido');
-    }
-
-    return await creator();
-};
-
-const isCedulaAvailable = async (cedula, excludeUserId = null) => {
-    const where = { cedula };
-    const existingUser = await Usuario.findOne({ where });
-    if (!existingUser) return true;
-    if (excludeUserId && existingUser.id === excludeUserId) return true;
-    return false;
-};
-
-const isEmailAvailable = async (correo) => {
-    const existingUser = await Usuario.findOne({ where: { correo } });
-    return !existingUser;
-};
-
-const hashPassword = async (password) => {
-    const salt = await bcrypt.genSalt(SALT_ROUNDS);
-    return await bcrypt.hash(password, salt);
-};
-
-const validateRequiredFields = (fields, required) => {
-    return required.every(field => fields[field]);
-};
-
-const UserManagementController = {
-    getUserComplete: async (req, res, next) => {
+class GestionUsuariosController {
+    async getUserComplete(req, res, next) {
         try {
             const { id } = req.params;
-            const usuario = await Usuario.findByPk(id, {
-                attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo']
-            });
+
+            const usuario = await UsuarioService.buscarCompletoConRol(id);
 
             if (!usuario) {
-                return ApiResponse.notFound(res, 'Usuario no encontrado');
+                return ApiResponse.notFound(res, MENSAJES.USUARIO_NO_ENCONTRADO);
             }
-
-            const rol = await findCompleteUserRole(id);
 
             await AuditoriaService.registrar({
                 mensaje: `Consulta de información de usuario: ${usuario.nombre}`,
@@ -141,193 +23,144 @@ const UserManagementController = {
                 usuario: req.usuario
             });
 
-            return ApiResponse.success(res, {
-                ...usuario.toJSON(),
-                ...rol
-            }, 'Usuario obtenido correctamente');
+            return ApiResponse.success(res, usuario, MENSAJES.USUARIO_OBTENIDO);
         } catch (error) {
             next(error);
         }
-    },
+    }
 
-    updateProfile: async (req, res, next) => {
+    async updateProfile(req, res, next) {
         try {
             const { id } = req.params;
             const { nombre, telefono, cedula } = req.body;
-            const usuario = await Usuario.findByPk(id);
 
-            if (!usuario) {
-                return ApiResponse.notFound(res, 'Usuario no encontrado');
+            const validacion = await UsuarioValidator.validarActualizacionPerfil(
+                { nombre, telefono, cedula },
+                id
+            );
+
+            if (!validacion.esValida) {
+                return ApiResponse.error(res, validacion.mensaje, 400);
             }
 
-            const datosAnteriores = { ...usuario.toJSON() };
+            const resultado = await UsuarioService.actualizarPerfil(id, {
+                nombre,
+                telefono,
+                cedula
+            });
 
-            if (cedula && cedula !== usuario.cedula) {
-                const isAvailable = await isCedulaAvailable(cedula, parseInt(id));
-                if (!isAvailable) {
-                    return ApiResponse.error(res, 'La cédula ya está registrada', 400);
-                }
+            if (!resultado.exito) {
+                return ApiResponse.notFound(res, resultado.mensaje);
             }
-
-            await usuario.update({ nombre, telefono, cedula });
 
             await AuditoriaService.registrarActualizacion(
                 'perfil_usuario',
                 id,
-                datosAnteriores,
-                usuario.toJSON(),
+                resultado.datosAnteriores,
+                resultado.datosNuevos,
                 req.usuario
             );
 
-            return ApiResponse.success(res, usuario, 'Perfil actualizado correctamente');
+            return ApiResponse.success(res, resultado.usuario, MENSAJES.PERFIL_ACTUALIZADO);
         } catch (error) {
             next(error);
         }
-    },
+    }
 
-    updateRoleData: async (req, res, next) => {
+    async updateRoleData(req, res, next) {
         try {
             const { id } = req.params;
             const { rol, roleData } = req.body;
-            let updated = null;
-            let datosAnteriores = null;
 
-            if (rol === 'ponente') {
-                const ponente = await Ponente.findOne({ where: { id_usuario: id } });
-                if (ponente) {
-                    datosAnteriores = { ...ponente.toJSON() };
-                    updated = await ponente.update({ especialidad: roleData.especialidad });
-                }
-            } else if (rol === 'gerente' || rol === 'organizador') {
-                const adminEmpresa = await AdministradorEmpresa.findOne({
-                    where: { id_usuario: id }
-                });
-                if (adminEmpresa && roleData.empresa_id) {
-                    datosAnteriores = { ...adminEmpresa.toJSON() };
-                    updated = await adminEmpresa.update({
-                        id_empresa: roleData.empresa_id
-                    });
-                }
-            }
+            const resultado = await UsuarioService.actualizarDatosRol(id, rol, roleData);
 
-            if (!updated) {
-                return ApiResponse.notFound(res, 'Rol no encontrado para este usuario');
+            if (!resultado.exito) {
+                return ApiResponse.notFound(res, resultado.mensaje);
             }
 
             await AuditoriaService.registrarActualizacion(
                 `datos_rol_${rol}`,
                 id,
-                datosAnteriores,
-                updated.toJSON(),
+                resultado.datosAnteriores,
+                resultado.datosNuevos,
                 req.usuario
             );
 
-            return ApiResponse.success(res, updated, 'Datos de rol actualizados');
+            return ApiResponse.success(res, resultado.datosActualizados, MENSAJES.ROL_ACTUALIZADO);
         } catch (error) {
             next(error);
         }
-    },
+    }
 
-    changeCompany: async (req, res, next) => {
+    async changeCompany(req, res, next) {
         try {
             const { id } = req.params;
             const { nueva_empresa_id } = req.body;
 
-            const empresa = await Empresa.findByPk(nueva_empresa_id);
-            if (!empresa) {
-                return ApiResponse.notFound(res, 'Empresa no encontrada');
+            if (!nueva_empresa_id) {
+                return ApiResponse.error(res, MENSAJES.EMPRESA_ID_REQUERIDO, 400);
             }
 
-            const adminEmpresa = await AdministradorEmpresa.findOne({
-                where: { id_usuario: id }
-            });
+            const resultado = await UsuarioService.cambiarEmpresa(id, nueva_empresa_id);
 
-            if (!adminEmpresa) {
-                return ApiResponse.notFound(res, 'Usuario no tiene empresa asignada');
+            if (!resultado.exito) {
+                return ApiResponse.notFound(res, resultado.mensaje);
             }
-
-            const empresaAnterior = adminEmpresa.id_empresa;
-            await adminEmpresa.update({ id_empresa: nueva_empresa_id });
 
             await AuditoriaService.registrar({
-                mensaje: `Usuario ID ${id} cambió de empresa ${empresaAnterior} a ${nueva_empresa_id} (${empresa.nombre})`,
+                mensaje: `Usuario ID ${id} cambió de empresa ${resultado.empresaAnterior} a ${nueva_empresa_id} (${resultado.empresaNombre})`,
                 tipo: 'UPDATE',
                 accion: 'cambiar_empresa',
                 usuario: req.usuario
             });
 
-            return ApiResponse.success(res, {
-                usuario_id: id,
-                empresa_anterior: empresaAnterior,
-                empresa_nueva: nueva_empresa_id,
-                empresa_nombre: empresa.nombre
-            }, 'Empresa actualizada correctamente');
+            return ApiResponse.success(res, resultado.datos, MENSAJES.EMPRESA_ACTUALIZADA);
         } catch (error) {
             next(error);
         }
-    },
+    }
 
-    createUser: async (req, res, next) => {
+    async createUser(req, res, next) {
         try {
             const { nombre, cedula, telefono, correo, contraseña, rol, roleData } = req.body;
 
-            const requiredFields = ['nombre', 'cedula', 'correo', 'contraseña', 'rol'];
-            if (!validateRequiredFields(req.body, requiredFields)) {
-                return ApiResponse.error(res, 'Faltan campos obligatorios', 400);
+            const validacion = UsuarioValidator.validarCreacionUsuario(req.body);
+            if (!validacion.esValida) {
+                return ApiResponse.error(res, validacion.mensaje, 400);
             }
 
-            if (!(await isEmailAvailable(correo))) {
-                return ApiResponse.error(res, 'El correo ya está registrado', 400);
-            }
-
-            if (!(await isCedulaAvailable(cedula))) {
-                return ApiResponse.error(res, 'La cédula ya está registrada', 400);
-            }
-
-            const contraseñaHash = await hashPassword(contraseña);
-            const nuevoUsuario = await Usuario.create({
+            const resultado = await UsuarioService.crearUsuario({
                 nombre,
                 cedula,
                 telefono,
                 correo,
-                contraseña: contraseñaHash
+                contraseña,
+                rol,
+                roleData
             });
 
-            const rolCreado = await createUserRole(nuevoUsuario.id, rol, roleData);
+            if (!resultado.exito) {
+                return ApiResponse.error(res, resultado.mensaje, 400);
+            }
 
             await AuditoriaService.registrarCreacion('usuario', {
-                id: nuevoUsuario.id,
-                nombre: nuevoUsuario.nombre,
-                cedula: nuevoUsuario.cedula,
-                correo: nuevoUsuario.correo,
+                id: resultado.usuario.id,
+                nombre: resultado.usuario.nombre,
+                cedula: resultado.usuario.cedula,
+                correo: resultado.usuario.correo,
                 rol: rol,
                 creado_por_admin: true
             }, req.usuario);
 
-            return ApiResponse.success(res, {
-                usuario: nuevoUsuario,
-                rol: rolCreado
-            }, 'Usuario creado exitosamente', 201);
+            return ApiResponse.success(res, resultado.datos, MENSAJES.USUARIO_CREADO, 201);
         } catch (error) {
             next(error);
         }
-    },
+    }
 
-    getAllUsersComplete: async (req, res, next) => {
+    async getAllUsersComplete(req, res, next) {
         try {
-            const usuarios = await Usuario.findAll({
-                attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo']
-            });
-
-            const usuariosCompletos = await Promise.all(
-                usuarios.map(async (usuario) => {
-                    const rol = await findCompleteUserRole(usuario.id);
-                    return {
-                        ...usuario.toJSON(),
-                        ...rol
-                    };
-                })
-            );
+            const usuarios = await UsuarioService.obtenerTodosCompletos();
 
             await AuditoriaService.registrar({
                 mensaje: `Consulta de listado completo de usuarios (${usuarios.length} registros)`,
@@ -336,95 +169,91 @@ const UserManagementController = {
                 usuario: req.usuario
             });
 
-            return ApiResponse.success(res, usuariosCompletos, 'Usuarios obtenidos correctamente');
+            return ApiResponse.success(res, usuarios, MENSAJES.USUARIOS_OBTENIDOS);
         } catch (error) {
             next(error);
         }
-    },
+    }
 
-    changePassword: async (req, res, next) => {
+    async changePassword(req, res, next) {
         try {
             const { id } = req.params;
             const { contraseña_actual, contraseña_nueva } = req.body;
 
-            const usuario = await Usuario.findByPk(id, {
-                attributes: ['id', 'nombre', 'correo', 'contraseña']
-            });
-
-            if (!usuario) {
-                return ApiResponse.notFound(res, 'Usuario no encontrado');
+            const validacion = UsuarioValidator.validarCambioContrasena(req.body);
+            if (!validacion.esValida) {
+                return ApiResponse.error(res, validacion.mensaje, 400);
             }
 
-            const isPasswordValid = await bcrypt.compare(contraseña_actual, usuario.contraseña);
-            if (!isPasswordValid) {
-                await AuditoriaService.registrar({
-                    mensaje: `Intento fallido de cambio de contraseña para usuario: ${usuario.nombre}`,
-                    tipo: 'SECURITY',
-                    accion: 'cambio_contraseña_fallido',
-                    usuario: req.usuario
-                });
+            const resultado = await UsuarioService.cambiarContrasena(
+                id,
+                contraseña_actual,
+                contraseña_nueva
+            );
 
-                return ApiResponse.error(res, 'Contraseña actual incorrecta', 401);
+            if (!resultado.exito) {
+                if (resultado.esErrorSeguridad) {
+                    await AuditoriaService.registrar({
+                        mensaje: `Intento fallido de cambio de contraseña para usuario ID: ${id}`,
+                        tipo: 'SECURITY',
+                        accion: 'cambio_contraseña_fallido',
+                        usuario: req.usuario
+                    });
+                }
+
+                return ApiResponse.error(res, resultado.mensaje, resultado.codigoEstado || 400);
             }
-
-            const nuevaContraseñaHash = await hashPassword(contraseña_nueva);
-            await usuario.update({ contraseña: nuevaContraseñaHash });
 
             await AuditoriaService.registrar({
-                mensaje: `Cambio de contraseña exitoso para usuario: ${usuario.nombre} (${usuario.correo})`,
+                mensaje: `Cambio de contraseña exitoso para usuario: ${resultado.nombreUsuario}`,
                 tipo: 'SECURITY',
                 accion: 'cambio_contraseña_exitoso',
                 usuario: req.usuario
             });
 
-            return ApiResponse.success(res, null, 'Contraseña actualizada exitosamente');
+            return ApiResponse.success(res, null, MENSAJES.CONTRASENA_ACTUALIZADA);
         } catch (error) {
             next(error);
         }
-    },
+    }
 
-    toggleUserStatus: async (req, res, next) => {
+    async toggleUserStatus(req, res, next) {
         try {
             const { id } = req.params;
             const { activo } = req.body;
 
             if (req.usuario.id === parseInt(id)) {
-                return ApiResponse.error(res, 'No puedes desactivar tu propia cuenta', 400);
+                return ApiResponse.error(res, MENSAJES.NO_DESACTIVAR_PROPIA_CUENTA, 400);
             }
 
-            const usuario = await Usuario.findByPk(id, {
-                attributes: ['id', 'nombre', 'correo', 'activo']
-            });
+            const resultado = await UsuarioService.cambiarEstadoUsuario(id, activo);
 
-            if (!usuario) {
-                return ApiResponse.notFound(res, 'Usuario no encontrado');
+            if (!resultado.exito) {
+                return ApiResponse.notFound(res, resultado.mensaje);
             }
 
-            const estadoAnterior = usuario.activo;
-            await usuario.update({ activo });
-
-            const mensaje = activo === STATUS_ACTIVE
-                ? `Usuario ${usuario.nombre} activado exitosamente`
-                : `Usuario ${usuario.nombre} desactivado exitosamente`;
+            const mensaje = activo === 1
+                ? `Usuario ${resultado.usuario.nombre} activado exitosamente`
+                : `Usuario ${resultado.usuario.nombre} desactivado exitosamente`;
 
             await AuditoriaService.registrar({
-                mensaje: `Usuario ${usuario.nombre} (${usuario.correo}) cambió de estado: ${estadoAnterior === STATUS_ACTIVE ? 'ACTIVO' : 'INACTIVO'} → ${activo === STATUS_ACTIVE ? 'ACTIVO' : 'INACTIVO'}`,
+                mensaje: `Usuario ${resultado.usuario.nombre} cambió de estado: ${resultado.estadoAnterior === 1 ? 'ACTIVO' : 'INACTIVO'} → ${activo === 1 ? 'ACTIVO' : 'INACTIVO'}`,
                 tipo: 'UPDATE',
-                accion: activo === STATUS_ACTIVE ? 'activar_usuario' : 'desactivar_usuario',
+                accion: activo === 1 ? 'activar_usuario' : 'desactivar_usuario',
                 usuario: req.usuario
             });
 
             return ApiResponse.success(res, {
-                id: usuario.id,
-                nombre: usuario.nombre,
-                correo: usuario.correo,
-                activo: usuario.activo,
+                id: resultado.usuario.id,
+                nombre: resultado.usuario.nombre,
+                correo: resultado.usuario.correo,
+                activo: resultado.usuario.activo,
                 modificado_por: req.usuario.nombre
             }, mensaje);
         } catch (error) {
             next(error);
         }
     }
-};
+}
 
-module.exports = UserManagementController;
+module.exports = new GestionUsuariosController();

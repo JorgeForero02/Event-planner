@@ -1,8 +1,9 @@
 const AuditoriaService = require('../services/auditoriaService');
 const ApiResponse = require('../utils/response');
+const { MENSAJES } = require('../constants/auditoria.constants');
 
-const AuditoriaController = {
-    getAll: async (req, res, next) => {
+class AuditoriaController {
+    async getAll(req, res, next) {
         try {
             const { tipo, accion, limite } = req.query;
 
@@ -13,11 +14,12 @@ const AuditoriaController = {
             };
 
             const registros = await AuditoriaService.obtenerRegistros(filtros);
-            return ApiResponse.success(res, registros, 'Registros de auditoría obtenidos');
+
+            return ApiResponse.success(res, registros, MENSAJES.REGISTROS_OBTENIDOS);
         } catch (error) {
             next(error);
         }
     }
-};
+}
 
-module.exports = AuditoriaController;
+module.exports = new AuditoriaController();

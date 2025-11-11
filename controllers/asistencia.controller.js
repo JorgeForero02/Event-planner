@@ -1,259 +1,142 @@
-const { Asistencia, Inscripcion, Evento, Asistente, Usuario } = require('../models');
-const { Op } = require('sequelize');
-const sequelize = require('../config/database');
-const ApiResponse = require('../utils/response');
+const AsistenciaService = require('../services/asistencia.service');
+const AsistenciaValidator = require('../validators/asistencia.validator');
+const PermisosService = require('../services/permisos.service');
 const AuditoriaService = require('../services/auditoriaService');
+const ApiResponse = require('../utils/response');
+const { CODIGOS_HTTP, MENSAJES } = require('../constants/asistencia.constants');
 
-const AsistenciaController = {
-    registrarAsistencia: async (req, res, next) => {
-        const transaction = await sequelize.transaction();
+class AsistenciaController {
+    async registrarAsistencia(req, res, next) {
+        const transaction = await AsistenciaService.crearTransaccion();
 
         try {
             const { id_inscripcion } = req.body;
-            const usuarioId = req.usuario.id;
+            const usuario = req.usuario;
 
-            const inscripcion = await Inscripcion.findByPk(id_inscripcion, {
-                include: [
-                    {
-                        model: Evento,
-                        as: 'evento',
-                        attributes: ['id', 'titulo', 'estado', 'fecha_inicio', 'fecha_fin']
-                    },
-                    {
-                        model: Asistente,
-                        as: 'asistente',
-                        attributes: ['id_asistente', 'id_usuario']
-                    }
-                ],
+            const validacion = await AsistenciaValidator.validarRegistro(id_inscripcion, usuario.id, transaction);
+
+            if (!validacion.esValida) {
+                await transaction.rollback();
+                return this._responderError(res, validacion);
+            }
+
+            const { inscripcion, evento } = validacion;
+            const fechaHoy = AsistenciaService.obtenerFechaHoy();
+
+            const existeAsistencia = await AsistenciaService.verificarAsistenciaExistente(
+                id_inscripcion,
+                fechaHoy,
                 transaction
-            });
+            );
 
-            if (!inscripcion) {
+            if (existeAsistencia) {
                 await transaction.rollback();
-                return ApiResponse.notFound(res, 'Inscripción no encontrada');
+                return ApiResponse.error(res, MENSAJES.ASISTENCIA_YA_REGISTRADA, CODIGOS_HTTP.CONFLICTO);
             }
 
-            if (inscripcion.estado !== 'Confirmada') {
-                await transaction.rollback();
-                return ApiResponse.error(
-                    res,
-                    'No puedes registrar asistencia. Tu inscripción debe estar confirmada.',
-                    400
-                );
-            }
-
-            if (inscripcion.asistente.id_usuario !== usuarioId) {
-                await transaction.rollback();
-                return ApiResponse.forbidden(
-                    res,
-                    'No puedes registrar asistencia para otra persona.'
-                );
-            }
-
-            const evento = inscripcion.evento;
-            if (evento.estado !== 1) {
-                await transaction.rollback();
-                return ApiResponse.error(
-                    res,
-                    'El evento no está disponible para registro de asistencia.',
-                    400
-                );
-            }
-
-            const fechaHoy = new Date().toISOString().split('T')[0];
-            const asistenciaExistente = await Asistencia.findOne({
-                where: {
-                    inscripcion: id_inscripcion,
-                    fecha: fechaHoy
-                },
-                transaction
-            });
-
-            if (asistenciaExistente) {
-                await transaction.rollback();
-                return ApiResponse.error(
-                    res,
-                    'Ya has registrado tu asistencia para hoy.',
-                    409
-                );
-            }
-
-            const nuevaAsistencia = await Asistencia.create({
+            const nuevaAsistencia = await AsistenciaService.crear({
                 fecha: fechaHoy,
                 estado: 'Presente',
                 inscripcion: id_inscripcion
-            }, { transaction });
+            }, transaction);
 
-            await AuditoriaService.registrarCreacion(
-                'asistencia',
-                {
-                    id: nuevaAsistencia.id,
-                    evento: evento.titulo,
-                    asistente: req.usuario.nombre,
-                    fecha: fechaHoy
-                },
-                req.usuario
-            );
+            await AuditoriaService.registrarCreacion('asistencia', {
+                id: nuevaAsistencia.id,
+                evento: evento.titulo,
+                asistente: usuario.nombre,
+                fecha: fechaHoy
+            }, usuario);
 
             await transaction.commit();
 
             return ApiResponse.success(
                 res,
                 nuevaAsistencia,
-                'Asistencia registrada exitosamente.',
-                201
+                MENSAJES.ASISTENCIA_REGISTRADA,
+                CODIGOS_HTTP.CREADO
             );
-
         } catch (error) {
             await transaction.rollback();
             next(error);
         }
-    },
+    }
 
-    obtenerMisAsistencias: async (req, res, next) => {
+    async obtenerMisAsistencias(req, res, next) {
         try {
             const usuarioId = req.usuario.id;
 
-            const asistente = await Asistente.findOne({
-                where: { id_usuario: usuarioId }
-            });
+            const asistente = await AsistenciaService.buscarAsistentePorUsuario(usuarioId);
 
             if (!asistente) {
-                return ApiResponse.success(res, [], 'No tienes asistencias registradas.');
+                return ApiResponse.success(res, [], MENSAJES.SIN_ASISTENCIAS);
             }
 
-            const inscripciones = await Inscripcion.findAll({
-                where: { id_asistente: asistente.id_asistente },
-                attributes: ['id', 'id_evento', 'codigo'],
-                include: [
-                    {
-                        model: Evento,
-                        as: 'evento',
-                        attributes: ['id', 'titulo', 'fecha_inicio', 'fecha_fin']
-                    },
-                    {
-                        model: Asistencia,
-                        as: 'asistencias',
-                        attributes: ['id', 'fecha', 'estado']
-                    }
-                ],
-                order: [
-                    ['id', 'DESC'],
-                    [{ model: Asistencia, as: 'asistencias' }, 'fecha', 'DESC']
-                ]
-            });
-
-            return ApiResponse.success(
-                res,
-                inscripciones,
-                'Asistencias obtenidas exitosamente.'
+            const inscripciones = await AsistenciaService.obtenerInscripcionesConAsistencias(
+                asistente.id_asistente
             );
 
+            return ApiResponse.success(res, inscripciones, MENSAJES.ASISTENCIAS_OBTENIDAS);
         } catch (error) {
             next(error);
         }
-    },
+    }
 
-    registrarAsistenciaPorCodigo: async (req, res, next) => {
-        const transaction = await sequelize.transaction();
+    async registrarAsistenciaPorCodigo(req, res, next) {
+        const transaction = await AsistenciaService.crearTransaccion();
 
         try {
             const { codigo } = req.body;
-            const usuarioId = req.usuario.id;
+            const usuario = req.usuario;
 
-            const inscripcion = await Inscripcion.findOne({
-                where: { codigo },
-                include: [
-                    {
-                        model: Evento,
-                        as: 'evento',
-                        attributes: ['id', 'titulo', 'estado', 'fecha_inicio', 'fecha_fin']
-                    },
-                    {
-                        model: Asistente,
-                        as: 'asistente',
-                        attributes: ['id_asistente', 'id_usuario']
-                    }
-                ],
+            const validacion = await AsistenciaValidator.validarRegistroPorCodigo(
+                codigo,
+                usuario.id,
                 transaction
-            });
+            );
 
-            if (!inscripcion) {
+            if (!validacion.esValida) {
                 await transaction.rollback();
-                return ApiResponse.notFound(res, 'Código de inscripción no válido');
+                return this._responderError(res, validacion);
             }
 
-            if (inscripcion.estado !== 'Confirmada') {
+            const { inscripcion, evento } = validacion;
+            const fechaHoy = AsistenciaService.obtenerFechaHoy();
+
+            const validacionFecha = AsistenciaValidator.validarFechaEnRangoEvento(
+                fechaHoy,
+                evento.fecha_inicio,
+                evento.fecha_fin
+            );
+
+            if (!validacionFecha.esValida) {
                 await transaction.rollback();
-                return ApiResponse.error(
-                    res,
-                    'La inscripción debe estar confirmada para registrar asistencia.',
-                    400
-                );
+                return ApiResponse.error(res, validacionFecha.mensaje, CODIGOS_HTTP.BAD_REQUEST);
             }
 
-            if (inscripcion.asistente.id_usuario !== usuarioId) {
-                await transaction.rollback();
-                return ApiResponse.forbidden(
-                    res,
-                    'Este código no te pertenece.'
-                );
-            }
-
-            const evento = inscripcion.evento;
-            if (evento.estado !== 1) {
-                await transaction.rollback();
-                return ApiResponse.error(
-                    res,
-                    'El evento no está disponible.',
-                    400
-                );
-            }
-
-            const fechaHoy = new Date().toISOString().split('T')[0];
-            if (fechaHoy < evento.fecha_inicio || fechaHoy > evento.fecha_fin) {
-                await transaction.rollback();
-                return ApiResponse.error(
-                    res,
-                    'No es posible registrar asistencia fuera de las fechas del evento.',
-                    400
-                );
-            }
-
-            const asistenciaExistente = await Asistencia.findOne({
-                where: {
-                    inscripcion: inscripcion.id,
-                    fecha: fechaHoy
-                },
+            const existeAsistencia = await AsistenciaService.verificarAsistenciaExistente(
+                inscripcion.id,
+                fechaHoy,
                 transaction
-            });
+            );
 
-            if (asistenciaExistente) {
+            if (existeAsistencia) {
                 await transaction.rollback();
-                return ApiResponse.error(
-                    res,
-                    'Ya has registrado tu asistencia para hoy.',
-                    409
-                );
+                return ApiResponse.error(res, MENSAJES.ASISTENCIA_YA_REGISTRADA, CODIGOS_HTTP.CONFLICTO);
             }
 
-            const nuevaAsistencia = await Asistencia.create({
+            const nuevaAsistencia = await AsistenciaService.crear({
                 fecha: fechaHoy,
                 estado: 'Presente',
                 inscripcion: inscripcion.id
-            }, { transaction });
+            }, transaction);
 
-            await AuditoriaService.registrarCreacion(
-                'asistencia',
-                {
-                    id: nuevaAsistencia.id,
-                    evento: evento.titulo,
-                    asistente: req.usuario.nombre,
-                    fecha: fechaHoy,
-                    metodo: 'codigo_qr'
-                },
-                req.usuario
-            );
+            await AuditoriaService.registrarCreacion('asistencia', {
+                id: nuevaAsistencia.id,
+                evento: evento.titulo,
+                asistente: usuario.nombre,
+                fecha: fechaHoy,
+                metodo: 'codigo_qr'
+            }, usuario);
 
             await transaction.commit();
 
@@ -267,69 +150,37 @@ const AsistenciaController = {
                         fecha_fin: evento.fecha_fin
                     }
                 },
-                'Asistencia registrada exitosamente mediante código.',
-                201
+                MENSAJES.ASISTENCIA_REGISTRADA_CODIGO,
+                CODIGOS_HTTP.CREADO
             );
-
         } catch (error) {
             await transaction.rollback();
             next(error);
         }
-    },
+    }
 
-    obtenerAsistenciasEvento: async (req, res, next) => {
+    async obtenerAsistenciasEvento(req, res, next) {
         try {
             const { id_evento } = req.params;
             const { fecha } = req.query;
-            const usuarioId = req.usuario.id;
+            const usuario = req.usuario;
 
-            const evento = await Evento.findByPk(id_evento, {
-                attributes: ['id', 'titulo', 'id_creador', 'id_empresa']
-            });
+            const evento = await AsistenciaService.buscarEventoPorId(id_evento);
 
             if (!evento) {
-                return ApiResponse.notFound(res, 'Evento no encontrado');
+                return ApiResponse.notFound(res, MENSAJES.EVENTO_NO_ENCONTRADO);
             }
 
-            const esCreador = evento.id_creador === usuarioId;
-            const esAdminEmpresa = req.usuario.rolData?.id_empresa === evento.id_empresa;
+            const tienePermiso = PermisosService.verificarPermisoLecturaEvento(usuario, evento);
 
-            if (!esCreador && !esAdminEmpresa && req.usuario.rol !== 'Administrador') {
-                return ApiResponse.forbidden(
-                    res,
-                    'No tienes permiso para ver las asistencias de este evento.'
-                );
+            if (!tienePermiso) {
+                return ApiResponse.forbidden(res, MENSAJES.SIN_PERMISO_VER_ASISTENCIAS);
             }
 
-            const whereAsistencia = {};
-            if (fecha) {
-                whereAsistencia.fecha = fecha;
-            }
-
-            const inscripciones = await Inscripcion.findAll({
-                where: { id_evento },
-                include: [
-                    {
-                        model: Asistente,
-                        as: 'asistente',
-                        include: [{
-                            model: Usuario,
-                            as: 'usuario',
-                            attributes: ['id', 'nombre', 'correo', 'cedula']
-                        }]
-                    },
-                    {
-                        model: Asistencia,
-                        as: 'asistencias',
-                        where: whereAsistencia,
-                        required: false,
-                        attributes: ['id', 'fecha', 'estado']
-                    }
-                ],
-                order: [
-                    [{ model: Asistencia, as: 'asistencias' }, 'fecha', 'DESC']
-                ]
-            });
+            const inscripciones = await AsistenciaService.obtenerAsistenciasPorEvento(
+                id_evento,
+                fecha
+            );
 
             return ApiResponse.success(
                 res,
@@ -338,13 +189,26 @@ const AsistenciaController = {
                     total_inscritos: inscripciones.length,
                     inscripciones
                 },
-                'Asistencias del evento obtenidas exitosamente.'
+                MENSAJES.ASISTENCIAS_EVENTO_OBTENIDAS
             );
-
         } catch (error) {
             next(error);
         }
     }
-};
 
-module.exports = AsistenciaController;
+    _responderError(res, validacion) {
+        const metodoRespuesta = this._obtenerMetodoRespuesta(validacion.codigoEstado);
+        return metodoRespuesta.call(ApiResponse, res, validacion.mensaje);
+    }
+
+    _obtenerMetodoRespuesta(codigo) {
+        const mapeo = {
+            [CODIGOS_HTTP.NOT_FOUND]: ApiResponse.notFound,
+            [CODIGOS_HTTP.FORBIDDEN]: ApiResponse.forbidden,
+            [CODIGOS_HTTP.BAD_REQUEST]: ApiResponse.error
+        };
+        return mapeo[codigo] || ApiResponse.error;
+    }
+}
+
+module.exports = new AsistenciaController();

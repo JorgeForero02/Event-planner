@@ -1,15 +1,56 @@
-﻿const { body } = require('express-validator');
+﻿const { MENSAJES_VALIDACION } = require('../constants/usuario.constants');
+const UsuarioService = require('../services/usuario.service');
 
-const usuarioValidator = {
-  create: [
-    body('nombre').notEmpty().withMessage('El nombre es requerido'),
-    body('cedula').notEmpty().withMessage('La cédula es requerida'),
-    body('correo').isEmail().withMessage('Email inválido'),
-    body('contraseña').isLength({ min: 6 }).withMessage('Contraseña mínimo 6 caracteres')
-  ],
-  update: [
-    body('correo').optional().isEmail().withMessage('Email inválido')
-  ]
-};
+class UsuarioValidator {
+  validarCreacionUsuario({ nombre, cedula, telefono, correo, contraseña, rol, roleData }) {
+    const camposRequeridos = ['nombre', 'cedula', 'correo', 'contraseña', 'rol'];
 
-module.exports = usuarioValidator;
+    for (const campo of camposRequeridos) {
+      if (!arguments[0][campo]) {
+        return {
+          esValida: false,
+          mensaje: MENSAJES_VALIDACION.FALTAN_CAMPOS_OBLIGATORIOS
+        };
+      }
+    }
+
+    return { esValida: true };
+  }
+
+  async validarActualizacionPerfil({ nombre, telefono, cedula }, userId) {
+    if (cedula) {
+      const usuario = await UsuarioService.buscarPorId(userId);
+      if (usuario && cedula !== usuario.cedula) {
+        const usuarioCedula = await UsuarioService.buscarPorCedula(cedula);
+        if (usuarioCedula && usuarioCedula.id !== parseInt(userId)) {
+          return {
+            esValida: false,
+            mensaje: MENSAJES_VALIDACION.CEDULA_YA_REGISTRADA
+          };
+        }
+      }
+    }
+
+    return { esValida: true };
+  }
+
+  validarCambioContrasena({ contraseña_actual, contraseña_nueva }) {
+    if (!contraseña_actual || !contraseña_nueva) {
+      return {
+        esValida: false,
+        mensaje: MENSAJES_VALIDACION.CONTRASENAS_REQUERIDAS
+      };
+    }
+
+    if (contraseña_nueva.length < 6) {
+      return {
+        esValida: false,
+        mensaje: MENSAJES_VALIDACION.CONTRASENA_CORTA
+      };
+    }
+
+    return { esValida: true };
+  }
+}
+
+module.exports = new UsuarioValidator();

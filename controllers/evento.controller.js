@@ -1,381 +1,212 @@
-const { Evento, Empresa, Usuario, Actividad, Inscripcion, Notificacion, Lugar } = require('../models');
+const EventoService = require('../services/evento.service');
+const EventoValidator = require('../validators/evento.validator');
+const PermisosService = require('../services/permisos.service');
 const AuditoriaService = require('../services/auditoriaService');
+const { MENSAJES, ESTADOS } = require('../constants/evento.constants');
 
-const crearEvento = async (req, res) => {
-    const transaction = await Evento.sequelize.transaction();
-    try {
-        const {
-            titulo,
-            descripcion,
-            modalidad,
-            hora,
-            cupos,
-            fecha_inicio,
-            fecha_fin,
-            id_empresa
-        } = req.body;
+class EventoController {
+    async crearEvento(req, res) {
+        const transaction = await EventoService.crearTransaccion();
 
-        if (!titulo || titulo.trim().length < 3) {
-            return res.status(400).json({
-                success: false,
-                message: 'El título es requerido y debe tener al menos 3 caracteres'
-            });
-        }
+        try {
+            const usuario = req.usuario;
+            const empresaId = req.body.id_empresa || req.adminEmpresa?.id_empresa;
 
-        if (!modalidad || !['Presencial', 'Virtual', 'Híbrida'].includes(modalidad)) {
-            return res.status(400).json({
-                success: false,
-                message: 'La modalidad debe ser: Presencial, Virtual o Híbrida'
-            });
-        }
+            const validacion = await EventoValidator.validarCreacion(req.body, empresaId);
 
-        if (!fecha_inicio) {
-            return res.status(400).json({
-                success: false,
-                message: 'La fecha de inicio es requerida'
-            });
-        }
-
-        if (!fecha_fin) {
-            return res.status(400).json({
-                success: false,
-                message: 'La fecha de fin es requerida'
-            });
-        }
-
-        if (new Date(fecha_inicio) > new Date(fecha_fin)) {
-            await transaction.rollback();
-            return res.status(400).json({
-                success: false,
-                message: 'La fecha de inicio debe ser anterior a la fecha de fin'
-            });
-        }
-
-        const usuarioId = req.usuario.id;
-        const empresaId = id_empresa || req.adminEmpresa.id_empresa;
-
-        const empresa = await Empresa.findByPk(empresaId);
-        if (!empresa) {
-            await transaction.rollback();
-            return res.status(404).json({
-                success: false,
-                message: 'La empresa especificada no existe'
-            });
-        }
-
-        if (empresa.estado !== 1) {
-            await transaction.rollback();
-            return res.status(400).json({
-                success: false,
-                message: 'Solo se pueden crear eventos en empresas aprobadas'
-            });
-        }
-
-        const evento = await Evento.create({
-            titulo,
-            descripcion,
-            modalidad,
-            hora,
-            cupos,
-            fecha_inicio,
-            fecha_fin,
-            id_empresa: empresaId,
-            id_creador: usuarioId,
-            estado: 0,
-            fecha_creacion: new Date(),
-            fecha_actualizacion: new Date()
-        }, { transaction });
-
-        await AuditoriaService.registrar({
-            mensaje: `Se creó el evento: ${titulo}`,
-            tipo: 'POST',
-            accion: 'crear_evento',
-            usuario: { id: usuarioId, nombre: req.usuario.nombre }
-        });
-
-        await transaction.commit();
-
-        res.status(201).json({
-            success: true,
-            message: 'Evento creado exitosamente',
-            data: {
-                id: evento.id,
-                titulo: evento.titulo,
-                modalidad: evento.modalidad,
-                estado: evento.estado,
-                fecha_inicio: evento.fecha_inicio,
-                fecha_fin: evento.fecha_fin,
-                id_empresa: evento.id_empresa,
-                id_creador: evento.id_creador
-            }
-        });
-
-    } catch (error) {
-        await transaction.rollback();
-        console.error('Error al crear evento:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al crear el evento',
-            error: error.message
-        });
-    }
-};
-
-const obtenerEventos = async (req, res) => {
-    try {
-        const { id_empresa, estado, modalidad } = req.query;
-        const usuario = req.usuario;
-        const { Op } = require('sequelize');
-        const where = {};
-
-        if (id_empresa) where.id_empresa = id_empresa;
-        if (usuario.rol === 'gerente' || usuario.rol === 'organizador') {
-        where.id_empresa = usuario.rolData.id_empresa;
-        if (id_empresa && parseInt(id_empresa) !== usuario.rolData.id_empresa) {
-        return res.status(403).json({ success: false, message: "No puede ver eventos de otra empresa." });
-        }
-    } 
-
-        else if (usuario.rol === 'administrador') {
-        if (id_empresa) where.id_empresa = id_empresa;
-    } 
-        else {
-        where.estado = 1; 
-        if (id_empresa) where.id_empresa = id_empresa;
-    }
-        if (estado !== undefined) {
-        if (usuario.rol === 'administrador') {
-         where.estado = estado;
-        } else {
-         where.estado = 1; 
-            }
-    }
-        if (modalidad) where.modalidad = modalidad;
-
-        const eventos = await Evento.findAll({
-            where,
-            include: [
-                {
-                    model: Empresa,
-                    as: 'empresa',
-                    attributes: ['id', 'nombre']
-                },
-                {
-                    model: Usuario,
-                    as: 'creador',
-                    attributes: ['id', 'nombre', 'correo']
-                },
-                {
-                    model: Actividad,
-                    as: 'actividades',
-                    attributes: ['id_actividad', 'titulo', 'fecha_actividad']
-                }
-            ],
-            order: [['fecha_creacion', 'DESC']]
-        });
-
-        res.json({
-            success: true,
-            message: 'Eventos obtenidos exitosamente',
-            total: eventos.length,
-            data: eventos
-        });
-
-    } catch (error) {
-        console.error('Error al obtener eventos:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al obtener eventos',
-            error: error.message
-        });
-    }
-};
-
-const obtenerEventoById = async (req, res) => {
-    try {
-        const { eventoId } = req.params;
-        const usuario = req.usuario;
-        const { id_empresa, estado, modalidad } = req.query;
-        const { Op } = require('sequelize');
-
-        const where = { id: eventoId };
-
-        if (usuario.rol === 'gerente' || usuario.rol === 'organizador') {
-            where.id_empresa = usuario.rolData.id_empresa;
-            if (id_empresa && parseInt(id_empresa) !== usuario.rolData.id_empresa) {
-                return res.status(403).json({ success: false, message: "No puede ver eventos de otra empresa." });
-            }
-        } else if (usuario.rol === 'administrador') {
-            if (id_empresa) where.id_empresa = id_empresa;
-        } else {
-            where.estado = 1;
-            if (id_empresa) where.id_empresa = id_empresa;
-        }
-
-        if (estado !== undefined) {
-            if (usuario.rol === 'administrador') {
-                where.estado = estado;
-            } else {
-                where.estado = 1;
-            }
-        }
-
-        if (modalidad) where.modalidad = modalidad;
-
-        const evento = await Evento.findOne({
-            where,
-            include: [
-                {
-                    model: Empresa,
-                    as: 'empresa',
-                    attributes: ['id', 'nombre', 'correo']
-                },
-                {
-                    model: Usuario,
-                    as: 'creador',
-                    attributes: ['id', 'nombre', 'correo']
-                },
-                {
-                    model: Actividad,
-                    as: 'actividades',
-                    include: [
-                        {
-                            model: Lugar,
-                            as: 'lugares',
-                            attributes: ['id', 'nombre'],
-                            through: { attributes: [] }
-                        }
-                    ]
-                },
-                {
-                    model: Inscripcion,
-                    as: 'inscripciones',
-                    attributes: ['id', 'fecha', 'estado']
-                }
-            ]
-        });
-
-        if (!evento) {
-            return res.status(404).json({
-                success: false,
-                message: 'Evento no encontrado o no tiene permisos para verlo'
-            });
-        }
-
-        res.json({
-            success: true,
-            message: 'Evento obtenido exitosamente',
-            data: evento
-        });
-
-    } catch (error) {
-        console.error('Error al obtener evento:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al obtener evento',
-            error: error.message
-        });
-    }
-};
-
-const actualizarEvento = async (req, res) => {
-    const transaction = await Evento.sequelize.transaction();
-
-    try {
-        const eventoActualizado = req.evento;
-        const camposPermitidos = ['titulo', 'descripcion', 'modalidad', 'hora', 'cupos', 'estado'];
-        const actualizaciones = {};
-        const ESTADOS_PERMITIDOS = [0, 1, 2, 3]; // 0=Borrador, 1=Publicado, 2=Cancelado, 3=Finalizado
-
-        if (req.body.estado !== undefined) {
-            const estadoInt = parseInt(req.body.estado);
-            if (!ESTADOS_PERMITIDOS.includes(estadoInt)) {
+            if (!validacion.esValida) {
                 await transaction.rollback();
                 return res.status(400).json({
                     success: false,
-                    message: `Estado no válido. Los valores permitidos son: ${ESTADOS_PERMITIDOS.join(', ')}.`
+                    message: validacion.mensaje
                 });
             }
+
+            const resultado = await EventoService.crear({
+                ...req.body,
+                id_empresa: empresaId,
+                id_creador: usuario.id
+            }, transaction);
+
+            await AuditoriaService.registrar({
+                mensaje: `Se creó el evento: ${resultado.evento.titulo}`,
+                tipo: 'POST',
+                accion: 'crear_evento',
+                usuario: { id: usuario.id, nombre: usuario.nombre }
+            });
+
+            await transaction.commit();
+
+            return res.status(201).json({
+                success: true,
+                message: MENSAJES.CREADO,
+                data: {
+                    id: resultado.evento.id,
+                    titulo: resultado.evento.titulo,
+                    modalidad: resultado.evento.modalidad,
+                    estado: resultado.evento.estado,
+                    fecha_inicio: resultado.evento.fecha_inicio,
+                    fecha_fin: resultado.evento.fecha_fin,
+                    id_empresa: resultado.evento.id_empresa,
+                    id_creador: resultado.evento.id_creador
+                }
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('Error al crear evento:', error);
+            return res.status(500).json({
+                success: false,
+                message: MENSAJES.ERROR_CREAR,
+                error: error.message
+            });
         }
+    }
 
-        camposPermitidos.forEach(campo => {
-            if (req.body[campo] !== undefined) {
-                actualizaciones[campo] = req.body[campo];
+    async obtenerEventos(req, res) {
+        try {
+            const { id_empresa, estado, modalidad } = req.query;
+            const usuario = req.usuario;
+
+            const whereClause = EventoService.construirFiltros({
+                id_empresa,
+                estado,
+                modalidad,
+                rol: usuario.rol,
+                empresaUsuario: usuario.rolData?.id_empresa
+            });
+
+            const eventos = await EventoService.obtenerTodos(whereClause);
+
+            return res.json({
+                success: true,
+                message: MENSAJES.LISTA_OBTENIDA,
+                total: eventos.length,
+                data: eventos
+            });
+        } catch (error) {
+            console.error('Error al obtener eventos:', error);
+            return res.status(500).json({
+                success: false,
+                message: MENSAJES.ERROR_OBTENER,
+                error: error.message
+            });
+        }
+    }
+
+    async obtenerEventoById(req, res) {
+        try {
+            const { eventoId } = req.params;
+            const usuario = req.usuario;
+
+            const whereClause = EventoService.construirFiltros({
+                id: eventoId,
+                rol: usuario.rol,
+                empresaUsuario: usuario.rolData?.id_empresa
+            });
+
+            const evento = await EventoService.buscarUno(whereClause);
+
+            if (!evento) {
+                return res.status(404).json({
+                    success: false,
+                    message: MENSAJES.NO_ENCONTRADO_O_SIN_PERMISO
+                });
             }
-        });
 
-        actualizaciones.fecha_actualizacion = new Date();
-
-        await eventoActualizado.update(actualizaciones, { transaction });
-
-        await AuditoriaService.registrar({
-            mensaje: `Se actualizó el evento: ${eventoActualizado.titulo}`,
-            tipo: 'PUT',
-            accion: 'actualizar_evento',
-            usuario: { id: req.usuario.id, nombre: req.usuario.nombre }
-        });
-
-        await transaction.commit();
-
-        res.json({
-            success: true,
-            message: 'Evento actualizado exitosamente',
-            data: eventoActualizado
-        });
-
-    } catch (error) {
-        await transaction.rollback();
-        console.error('Error al actualizar evento:', error);
-
-        res.status(500).json({
-            success: false,
-            message: 'Error al actualizar evento',
-            error: error.message
-        });
+            return res.json({
+                success: true,
+                message: MENSAJES.OBTENIDO,
+                data: evento
+            });
+        } catch (error) {
+            console.error('Error al obtener evento:', error);
+            return res.status(500).json({
+                success: false,
+                message: MENSAJES.ERROR_OBTENER,
+                error: error.message
+            });
+        }
     }
-};
 
-const eliminarEvento = async (req, res) => {
-    const transaction = await Evento.sequelize.transaction();
+    async actualizarEvento(req, res) {
+        const transaction = await EventoService.crearTransaccion();
 
-    try {
-        const eventoActualizado = req.evento;
+        try {
+            const eventoActualizado = req.evento;
 
-        await eventoActualizado.update(
-            { estado: 2, fecha_actualizacion: new Date() },
-            { transaction }
-        );
+            const validacion = EventoValidator.validarActualizacion(req.body);
 
-        await AuditoriaService.registrar({
-            mensaje: `Se canceló el evento: ${eventoActualizado.titulo}`,
-            tipo: 'DELETE',
-            accion: 'cancelar_evento',
-            usuario: { id: req.usuario.id, nombre: req.usuario.nombre }
-        });
+            if (!validacion.esValida) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: validacion.mensaje
+                });
+            }
 
-        await transaction.commit();
+            const actualizaciones = EventoService.construirActualizaciones(req.body);
 
-        res.json({
-            success: true,
-            message: 'Evento cancelado exitosamente'
-        });
+            await eventoActualizado.update(actualizaciones, { transaction });
 
-    } catch (error) {
-        await transaction.rollback();
-        console.error('Error al eliminar evento:', error);
+            await AuditoriaService.registrar({
+                mensaje: `Se actualizó el evento: ${eventoActualizado.titulo}`,
+                tipo: 'PUT',
+                accion: 'actualizar_evento',
+                usuario: { id: req.usuario.id, nombre: req.usuario.nombre }
+            });
 
-        res.status(500).json({
-            success: false,
-            message: 'Error al cancelar evento',
-            error: error.message
-        });
+            await transaction.commit();
+
+            return res.json({
+                success: true,
+                message: MENSAJES.ACTUALIZADO,
+                data: eventoActualizado
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('Error al actualizar evento:', error);
+            return res.status(500).json({
+                success: false,
+                message: MENSAJES.ERROR_ACTUALIZAR,
+                error: error.message
+            });
+        }
     }
-};
 
-module.exports = {
-    crearEvento,
-    obtenerEventos,
-    obtenerEventoById,
-    actualizarEvento,
-    eliminarEvento
-};
+    async eliminarEvento(req, res) {
+        const transaction = await EventoService.crearTransaccion();
+
+        try {
+            const eventoActualizado = req.evento;
+
+            await eventoActualizado.update(
+                { estado: ESTADOS.CANCELADO, fecha_actualizacion: new Date() },
+                { transaction }
+            );
+
+            await AuditoriaService.registrar({
+                mensaje: `Se canceló el evento: ${eventoActualizado.titulo}`,
+                tipo: 'DELETE',
+                accion: 'cancelar_evento',
+                usuario: { id: req.usuario.id, nombre: req.usuario.nombre }
+            });
+
+            await transaction.commit();
+
+            return res.json({
+                success: true,
+                message: MENSAJES.CANCELADO
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('Error al eliminar evento:', error);
+            return res.status(500).json({
+                success: false,
+                message: MENSAJES.ERROR_CANCELAR,
+                error: error.message
+            });
+        }
+    }
+}
+
+module.exports = new EventoController();
