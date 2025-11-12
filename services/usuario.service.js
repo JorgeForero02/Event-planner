@@ -46,11 +46,11 @@ class UsuarioService {
             include: [{
                 model: Empresa,
                 as: 'empresa',
-                attributes: ['id', 'nombre', 'nit']  // ✅ Cambiado de razon_social a nombre
+                attributes: ['id', 'nombre', 'nit']
             }]
         });
         if (adminEmpresa) {
-            const rol = adminEmpresa.id_cargo === 1 ? 'gerente' : 'organizador';
+            const rol = adminEmpresa.es_Gerente === 1 ? 'gerente' : 'organizador';
             return { rol, rolData: adminEmpresa };
         }
 
