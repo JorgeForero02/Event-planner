@@ -46,7 +46,7 @@ class UsuarioService {
             include: [{
                 model: Empresa,
                 as: 'empresa',
-                attributes: ['id', 'razon_social', 'nit']
+                attributes: ['id', 'nombre', 'nit']  // ✅ Cambiado de razon_social a nombre
             }]
         });
         if (adminEmpresa) {
@@ -88,7 +88,7 @@ class UsuarioService {
             include: [{
                 model: Empresa,
                 as: 'empresa',
-                attributes: ['id', 'nombre']
+                attributes: ['id', 'nombre']  // ✅ Cambiado de razon_social a nombre
             }]
         });
         if (adminEmpresa) {
