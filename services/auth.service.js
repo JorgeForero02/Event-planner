@@ -113,7 +113,7 @@ class AuthService {
 
         return {
             exito: true,
-            mensaje: `Usuario ${usuario.nombre} promovido a gerente de ${empresa.razon_social}`,
+            mensaje: `Usuario ${usuario.nombre} promovido a gerente de ${empresa.nombre}`,
             datos: {
                 usuario: {
                     id: usuario.id,
@@ -122,7 +122,7 @@ class AuthService {
                 },
                 empresa: {
                     id: empresa.id,
-                    razon_social: empresa.razon_social
+                    nombre: empresa.nombre
                 }
             }
         };
@@ -178,7 +178,7 @@ class AuthService {
 
         return {
             exito: true,
-            mensaje: `Organizador creado exitosamente para ${empresa.razon_social}`,
+            mensaje: `Organizador creado exitosamente para ${empresa.nombre}`,
             datos: {
                 usuario: {
                     id: nuevoUsuario.id,
@@ -187,7 +187,7 @@ class AuthService {
                 },
                 empresa: {
                     id: empresa.id,
-                    razon_social: empresa.razon_social
+                    nombre: empresa.nombre
                 }
             }
         };
