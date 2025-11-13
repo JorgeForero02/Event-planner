@@ -30,11 +30,11 @@ class ActividadController {
                 transaction
             );
 
-            await AuditoriaService.log({
-                message: `Se creó la actividad: ${datosActividad.titulo} para evento ${evento.titulo}`,
-                type: 'POST',
-                action: 'crear_actividad',
-                user: { id: usuario.id, nombre: usuario.nombre }
+            await AuditoriaService.registrar({
+                mensaje: `Se creó la actividad: ${datosActividad.titulo} para evento ${evento.titulo}`,
+                tipo: 'POST',
+                accion: 'crear_actividad',
+                usuario: { id: usuario.id, nombre: usuario.nombre }
             });
 
             await transaction.commit();
