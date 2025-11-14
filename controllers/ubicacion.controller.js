@@ -79,6 +79,20 @@ class UbicacionController {
     async obtenerUbicacionesEmpresa(req, res) {
         try {
             const { empresaId } = req.params;
+            const usuario = req.usuario; 
+
+            const tienePermiso = PermisosService.verificarAccesoEmpresa(
+                usuario.rol,
+                usuario.rolData?.id_empresa,
+                empresaId
+            );
+
+            if (!tienePermiso) {
+                return res.status(403).json({
+                    success: false,
+                    message: MENSAJES.SIN_PERMISO_VER 
+                });
+            }
 
             const resultado = await UbicacionService.obtenerPorEmpresa(empresaId);
 
@@ -108,6 +122,7 @@ class UbicacionController {
     async obtenerUbicacionById(req, res) {
         try {
             const { ubicacionId } = req.params;
+            const usuario = req.usuario; 
 
             const ubicacion = await UbicacionService.buscarPorId(ubicacionId);
 
@@ -115,6 +130,19 @@ class UbicacionController {
                 return res.status(404).json({
                     success: false,
                     message: MENSAJES.NO_ENCONTRADA
+                });
+            }
+
+            const tienePermiso = PermisosService.verificarAccesoEmpresa(
+                usuario.rol,
+                usuario.rolData?.id_empresa,
+                ubicacion.id_empresa 
+            );
+
+            if (!tienePermiso) {
+                return res.status(403).json({
+                    success: false,
+                    message: MENSAJES.SIN_PERMISO_VER 
                 });
             }
 
@@ -132,7 +160,6 @@ class UbicacionController {
             });
         }
     }
-
     async actualizarUbicacion(req, res) {
         const transaction = await UbicacionService.crearTransaccion();
 

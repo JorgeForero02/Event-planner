@@ -1,9 +1,30 @@
-const { Evento, Empresa, Usuario, Actividad, Inscripcion, Lugar } = require('../models');
+const { Evento, Empresa, Usuario, Actividad, Inscripcion, Lugar, Asistente , AdministradorEmpresa} = require('../models');
 const { ESTADOS, MODALIDADES } = require('../constants/evento.constants');
 
 class EventoService {
     crearTransaccion() {
         return Evento.sequelize.transaction();
+    }
+
+    _obtenerFechaHoy() {
+        return new Date().toISOString().split('T')[0];
+    }
+
+    async _actualizarEstadoFinalizado(evento) {
+        if (!evento || evento.estado === ESTADOS.CANCELADO || evento.estado === ESTADOS.FINALIZADO) {
+            return evento;
+        }
+
+        const fechaHoy = this._obtenerFechaHoy();
+
+        if (evento.estado === ESTADOS.PUBLICADO && fechaHoy > evento.fecha_fin) {
+            try {
+                await evento.update({ estado: ESTADOS.FINALIZADO });
+            } catch (error) {
+                console.error(`Error al auto-finalizar evento ${evento.id}:`, error.message);
+            }
+        }
+        return evento;
     }
 
     async crear(datosEvento, transaction) {
@@ -45,7 +66,7 @@ class EventoService {
     }
 
     async obtenerTodos(whereClause) {
-        return await Evento.findAll({
+        const eventos = await Evento.findAll({
             where: whereClause,
             include: [
                 {
@@ -66,10 +87,14 @@ class EventoService {
             ],
             order: [['fecha_creacion', 'DESC']]
         });
+        const eventosActualizados = await Promise.all(
+            eventos.map(evento => this._actualizarEstadoFinalizado(evento))
+        );
+        return eventosActualizados;
     }
 
     async buscarUno(whereClause) {
-        return await Evento.findOne({
+        const evento = await Evento.findOne({
             where: whereClause,
             include: [
                 {
@@ -101,6 +126,12 @@ class EventoService {
                 }
             ]
         });
+
+        if (!evento) {
+            return null;
+        }
+        
+        return await this._actualizarEstadoFinalizado(evento);
     }
 
     construirActualizaciones(datos) {
@@ -116,6 +147,48 @@ class EventoService {
         actualizaciones.fecha_actualizacion = new Date();
 
         return actualizaciones;
+    }
+
+    async obtenerNotificacionesCancelacion(evento) {
+        const { id, id_creador } = evento;
+
+        const inscripciones = await Inscripcion.findAll({
+            where: {
+                id_evento: id,
+                estado: { [require('sequelize').Op.in]: ['Confirmada', 'Pendiente'] }
+            },
+            include: [{
+                model: Asistente,
+                as: 'asistente',
+                required: true,
+                include: [{
+                    model: Usuario,
+                    as: 'usuario',
+                    attributes: ['nombre', 'correo'],
+                    required: true
+                }]
+            }]
+        });
+    
+        const asistentesMap = new Map();
+        inscripciones.forEach(i => {
+            const usuario = i.asistente.usuario.toJSON();
+            asistentesMap.set(usuario.correo, usuario);
+        });
+
+        const creador = await Usuario.findByPk(id_creador, {
+            attributes: ['nombre', 'correo']
+        });
+        const creadorJson = creador ? creador.toJSON() : null;
+
+        if (creadorJson) {
+            asistentesMap.delete(creadorJson.correo);
+        }
+        
+        return {
+            asistentes: Array.from(asistentesMap.values()),
+            creador: creadorJson
+        };
     }
 }
 

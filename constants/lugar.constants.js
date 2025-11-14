@@ -9,6 +9,7 @@ const MENSAJES = {
     SIN_PERMISO_CREAR: 'No tiene permisos para crear lugares en esta empresa',
     SIN_PERMISO_MODIFICAR: 'No tiene permisos para modificar este lugar',
     SIN_PERMISO_ELIMINAR: 'No tiene permisos para eliminar este lugar',
+    SIN_PERMISO_VER: 'No tiene permisos para ver los lugares de esta empresa',
     TIENE_ACTIVIDADES_ASOCIADAS: 'No se puede eliminar un lugar que tiene actividades asociadas',
     ERROR_CREAR: 'Error al crear el lugar',
     ERROR_ACTUALIZAR: 'Error al actualizar lugar',

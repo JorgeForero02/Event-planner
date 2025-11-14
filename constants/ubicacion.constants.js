@@ -8,6 +8,7 @@ const MENSAJES = {
     EMPRESA_NO_ENCONTRADA: 'Empresa no encontrada',
     SIN_PERMISO_CREAR: 'No tiene permisos para crear ubicaciones en esta empresa',
     SIN_PERMISO_MODIFICAR: 'No tiene permisos para modificar esta ubicación',
+    SIN_PERMISO_VER: 'No tiene permisos para ver las ubicaciones de esta empresa',
     SIN_PERMISO_ELIMINAR: 'No tiene permisos para eliminar esta ubicación',
     ERROR_CREAR: 'Error al crear la ubicación',
     ERROR_ACTUALIZAR: 'Error al actualizar ubicación',

@@ -20,9 +20,17 @@ class InscripcionService {
         return sequelize.transaction();
     }
 
+    _obtenerFechaHoy() {
+        return new Date().toISOString().split('T')[0];
+    }
+
     async obtenerEventosDisponibles(modalidad) {
         const whereClause = { estado: 1 };
         if (modalidad) whereClause.modalidad = modalidad;
+
+        whereClause.fecha_fin = {
+            [Op.gte]: this._obtenerFechaHoy()
+        };
 
         const eventos = await Evento.findAll({
             where: whereClause,
@@ -79,6 +87,15 @@ class InscripcionService {
             return {
                 exito: false,
                 mensaje: MENSAJES.EVENTO_NO_DISPONIBLE,
+                codigoEstado: 400
+            };
+        }
+
+        const fechaHoy = this._obtenerFechaHoy();
+        if (fechaHoy > evento.fecha_fin) {
+            return {
+                exito: false,
+                mensaje: MENSAJES.EVENTO_FINALIZADO,
                 codigoEstado: 400
             };
         }
@@ -165,6 +182,15 @@ class InscripcionService {
             };
         }
 
+        const fechaHoy = this._obtenerFechaHoy();
+        if (fechaHoy > evento.fecha_fin) {
+            return {
+                exito: false,
+                mensaje: MENSAJES.EVENTO_FINALIZADO,
+                codigoEstado: 400
+            };
+        }
+
         if (evento.id_empresa !== gerente.rolData.id_empresa) {
             return {
                 exito: false,
@@ -246,6 +272,15 @@ class InscripcionService {
             return {
                 exito: false,
                 mensaje: `Esta inscripción no se puede confirmar (Estado: ${inscripcion.estado}).`,
+                codigoEstado: 400
+            };
+        }
+
+        const fechaHoy = this._obtenerFechaHoy();
+        if (fechaHoy > inscripcion.evento.fecha_fin) {
+            return {
+                exito: false,
+                mensaje: MENSAJES.EVENTO_FINALIZADO,
                 codigoEstado: 400
             };
         }

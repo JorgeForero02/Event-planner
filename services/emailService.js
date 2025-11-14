@@ -162,6 +162,69 @@ const EmailService = {
         }
     },
 
+    enviarNotificacionCancelacion: async (
+        destinatario,
+        nombreUsuario,
+        nombreEvento,
+        correoCreador 
+    ) => {
+
+        const infoContacto = correoCreador
+            ? `<p>Si tienes alguna consulta, por favor, ponte en contacto con el creador del evento a través de su correo:</p>
+               <p><strong><a href="mailto:${correoCreador}">${correoCreador}</a></strong></p>`
+            : `<p>Si tienes alguna consulta, por favor, ponte en contacto con el organizador del evento.</p>`;
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: `Notificación: El evento "${nombreEvento}" ha sido cancelado`,
+            html: `
+                <h2>Hola ${nombreUsuario},</h2>
+                <p>Lamentamos informarte que el evento:</p>
+                <h3 style="color: #dc3545;">${nombreEvento}</h3>
+                <p>al cual estabas inscrito, ha sido <strong>cancelado</strong>.</p>
+                <br>
+                ${infoContacto} <!-- <-- MENSAJE ACTUALIZADO -->
+                <p>Atentamente,<br>El equipo de Event Planner</p>
+            `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de cancelación (asistente) enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de cancelación (asistente):', error);
+        }
+    },
+
+    enviarConfirmacionCancelacionCreador: async (
+        destinatario,
+        nombreUsuario,
+        nombreEvento
+    ) => {
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: `Confirmación: Cancelación del evento "${nombreEvento}"`,
+            html: `
+                <h2>Hola ${nombreUsuario},</h2>
+                <p>Te confirmamos que el evento:</p>
+                <h3 style="color: #dc3545;">${nombreEvento}</h3>
+                <p>del cual eres el creador, ha sido <strong>cancelado exitosamente</strong> en la plataforma.</p>
+                <br>
+                <p>Se ha notificado a los usuarios inscritos.</p>
+                <p>Atentamente,<br>El equipo de Event Planner</p>
+            `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de confirmación de cancelación (creador) enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de confirmación (creador):', error);
+        }
+    },
+
     enviarConfirmacionInscripcion: async (
         destinatario,
         nombreUsuario,

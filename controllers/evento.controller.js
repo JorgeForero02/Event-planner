@@ -2,6 +2,7 @@ const EventoService = require('../services/evento.service');
 const EventoValidator = require('../validators/evento.validator');
 const PermisosService = require('../services/permisos.service');
 const AuditoriaService = require('../services/auditoriaService');
+const EmailService = require('../services/emailService');
 const { MENSAJES, ESTADOS } = require('../constants/evento.constants');
 
 class EventoController {
@@ -177,7 +178,7 @@ class EventoController {
         const transaction = await EventoService.crearTransaccion();
 
         try {
-            const eventoActualizado = req.evento;
+            const eventoActualizado = req.evento; 
 
             await eventoActualizado.update(
                 { estado: ESTADOS.CANCELADO, fecha_actualizacion: new Date() },
@@ -193,10 +194,36 @@ class EventoController {
 
             await transaction.commit();
 
+            try {
+                const { asistentes, creador } = await EventoService.obtenerNotificacionesCancelacion(eventoActualizado);
+                
+                const correoDelCreador = creador ? creador.correo : null;
+
+                for (const usuario of asistentes) {
+                    await EmailService.enviarNotificacionCancelacion(
+                        usuario.correo,
+                        usuario.nombre,
+                        eventoActualizado.titulo,
+                        correoDelCreador 
+                    );
+                }
+
+                if (creador) {
+                    await EmailService.enviarConfirmacionCancelacionCreador(
+                        creador.correo,
+                        creador.nombre,
+                        eventoActualizado.titulo
+                    );
+                }
+
+            } catch (emailError) {
+                console.error('Error al enviar notificaciones de cancelación (evento ya cancelado):', emailError);
+            }
             return res.json({
                 success: true,
                 message: MENSAJES.CANCELADO
             });
+
         } catch (error) {
             await transaction.rollback();
             console.error('Error al eliminar evento:', error);

@@ -6,7 +6,8 @@ const ApiResponse = require('../utils/response');
 const { CODIGOS_HTTP, MENSAJES } = require('../constants/asistencia.constants');
 
 class AsistenciaController {
-    async registrarAsistencia(req, res, next) {
+
+    registrarAsistencia = async (req, res, next) => {
         const transaction = await AsistenciaService.crearTransaccion();
 
         try {
@@ -22,6 +23,17 @@ class AsistenciaController {
 
             const { inscripcion, evento } = validacion;
             const fechaHoy = AsistenciaService.obtenerFechaHoy();
+
+            const validacionFecha = AsistenciaValidator.validarFechaEnRangoEvento(
+                fechaHoy,
+                evento.fecha_inicio,
+                evento.fecha_fin
+            );
+
+            if (!validacionFecha.esValida) {
+                await transaction.rollback();
+                return ApiResponse.error(res, validacionFecha.mensaje, CODIGOS_HTTP.BAD_REQUEST);
+            }
 
             const existeAsistencia = await AsistenciaService.verificarAsistenciaExistente(
                 id_inscripcion,
@@ -56,12 +68,14 @@ class AsistenciaController {
                 CODIGOS_HTTP.CREADO
             );
         } catch (error) {
-            await transaction.rollback();
+            if (transaction && !transaction.finished) {
+                await transaction.rollback();
+            }
             next(error);
         }
     }
 
-    async obtenerMisAsistencias(req, res, next) {
+    obtenerMisAsistencias = async (req, res, next) => {
         try {
             const usuarioId = req.usuario.id;
 
@@ -81,7 +95,7 @@ class AsistenciaController {
         }
     }
 
-    async registrarAsistenciaPorCodigo(req, res, next) {
+    registrarAsistenciaPorCodigo = async (req, res, next) => {
         const transaction = await AsistenciaService.crearTransaccion();
 
         try {
@@ -154,12 +168,14 @@ class AsistenciaController {
                 CODIGOS_HTTP.CREADO
             );
         } catch (error) {
-            await transaction.rollback();
+            if (transaction && !transaction.finished) {
+                await transaction.rollback();
+            }
             next(error);
         }
     }
 
-    async obtenerAsistenciasEvento(req, res, next) {
+    obtenerAsistenciasEvento = async (req, res, next) => {
         try {
             const { id_evento } = req.params;
             const { fecha } = req.query;
@@ -196,12 +212,12 @@ class AsistenciaController {
         }
     }
 
-    _responderError(res, validacion) {
+    _responderError = (res, validacion) => {
         const metodoRespuesta = this._obtenerMetodoRespuesta(validacion.codigoEstado);
         return metodoRespuesta.call(ApiResponse, res, validacion.mensaje);
     }
 
-    _obtenerMetodoRespuesta(codigo) {
+    _obtenerMetodoRespuesta = (codigo) => {
         const mapeo = {
             [CODIGOS_HTTP.NOT_FOUND]: ApiResponse.notFound,
             [CODIGOS_HTTP.FORBIDDEN]: ApiResponse.forbidden,

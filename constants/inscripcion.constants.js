@@ -16,6 +16,7 @@ const MENSAJES = {
     SOLO_EVENTOS_PROPIA_EMPRESA: 'Solo puedes inscribir usuarios en eventos de tu propia empresa.',
     ENLACE_INVALIDO: 'El enlace de confirmación no es válido o ha expirado.',
     YA_CONFIRMADA: 'Ya has confirmado tu asistencia a este evento.',
+    EVENTO_FINALIZADO: 'No puedes inscribirte a un evento que ya ha finalizado.',
     CUPO_ALCANZADO_CONFIRMACION: 'Lo sentimos, mientras confirmabas, el evento ha alcanzado su cupo máximo.'
 };
 

@@ -75,6 +75,20 @@ class LugarController {
     async obtenerLugaresEmpresa(req, res) {
         try {
             const { empresaId } = req.params;
+            const usuario = req.usuario; 
+
+            const tienePermiso = PermisosService.verificarAccesoEmpresa(
+                usuario.rol,
+                usuario.rolData?.id_empresa,
+                empresaId
+            );
+
+            if (!tienePermiso) {
+                return res.status(403).json({
+                    success: false,
+                    message: MENSAJES.SIN_PERMISO_VER 
+                });
+            }
 
             const resultado = await LugarService.obtenerPorEmpresa(empresaId);
 
@@ -104,6 +118,7 @@ class LugarController {
     async obtenerLugarById(req, res) {
         try {
             const { lugarId } = req.params;
+            const usuario = req.usuario; 
 
             const lugar = await LugarService.buscarPorId(lugarId);
 
@@ -111,6 +126,19 @@ class LugarController {
                 return res.status(404).json({
                     success: false,
                     message: MENSAJES.NO_ENCONTRADO
+                });
+            }
+
+            const tienePermiso = PermisosService.verificarAccesoEmpresa(
+                usuario.rol,
+                usuario.rolData?.id_empresa,
+                lugar.id_empresa 
+            );
+
+            if (!tienePermiso) {
+                return res.status(403).json({
+                    success: false,
+                    message: MENSAJES.SIN_PERMISO_VER 
                 });
             }
 
