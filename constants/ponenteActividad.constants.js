@@ -10,6 +10,11 @@ const MENSAJES = {
     YA_ASIGNADO: 'Este ponente ya está asignado a esta actividad',
     SOLICITUD_ENVIADA: 'Solicitud de cambio enviada exitosamente',
     SOLICITUD_PROCESADA: 'Solicitud procesada exitosamente',
+    INVITACION_ACEPTADA: 'Invitación aceptada exitosamente',
+    INVITACION_RECHAZADA: 'Invitación rechazada. Gracias por tu respuesta',
+    SOLO_PONENTE_PUEDE_RESPONDER: 'Solo el ponente invitado puede responder a esta invitación',
+    INVITACION_YA_RESPONDIDA: 'Esta invitación ya ha sido respondida',
+    DEBE_ESTAR_PENDIENTE: 'Solo puedes responder invitaciones en estado pendiente',
     SIN_PERMISO_CREAR: 'No tiene permisos para asignar ponentes',
     SIN_PERMISO_MODIFICAR: 'No tiene permisos para modificar esta asignación',
     SIN_PERMISO_ELIMINAR: 'No tiene permisos para eliminar esta asignación',
@@ -26,7 +31,9 @@ const MENSAJES_VALIDACION = {
     ACTIVIDAD_REQUERIDA: 'El ID de la actividad es requerido',
     ESTADO_INVALIDO: 'Estado inválido',
     CAMBIOS_REQUERIDOS: 'Debe especificar los cambios solicitados',
-    JUSTIFICACION_REQUERIDA: 'Debe proporcionar una justificación para el cambio'
+    JUSTIFICACION_REQUERIDA: 'Debe proporcionar una justificación para el cambio',
+    RESPUESTA_REQUERIDA: 'Debes indicar si aceptas o rechazas la invitación',
+    MOTIVO_RECHAZO_RECOMENDADO: 'Es recomendable proporcionar un motivo de rechazo'
 };
 
 const ESTADOS_PONENTE_ACTIVIDAD = {

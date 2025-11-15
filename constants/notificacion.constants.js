@@ -1,4 +1,3 @@
-// constants/notificacion.constants.js
 const MENSAJES = {
     CREADA: 'Notificación creada exitosamente',
     ACTUALIZADA: 'Notificación actualizada exitosamente',
@@ -43,6 +42,8 @@ const TIPOS_NOTIFICACION = {
     CAMBIO_APROBADO: 'cambio_aprobado',
     CAMBIO_RECHAZADO: 'cambio_rechazado',
     ASIGNACION_PONENTE: 'asignacion_ponente',
+    INVITACION_ACEPTADA: 'invitacion_aceptada',
+    INVITACION_RECHAZADA: 'invitacion_rechazada',
     RECORDATORIO_ACTIVIDAD: 'recordatorio_actividad',
     CANCELACION_ACTIVIDAD: 'cancelacion_actividad',
     ACTUALIZACION_EVENTO: 'actualizacion_evento'

@@ -81,7 +81,6 @@ class NotificacionController {
                 });
             }
 
-            // Verificar que el usuario sea el destinatario o admin
             if (notificacion.id_destinatario !== usuario.id && usuario.rol !== 'admin') {
                 return res.status(403).json({
                     success: false,
@@ -120,7 +119,6 @@ class NotificacionController {
                 });
             }
 
-            // Solo el destinatario o admin pueden eliminar
             if (notificacion.id_destinatario !== usuario.id && usuario.rol !== 'admin') {
                 await transaction.rollback();
                 return res.status(403).json({

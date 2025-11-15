@@ -1,4 +1,4 @@
-const { Ponente, Actividad, PonenteActividad } = require('../models');
+const { Ponente, Actividad, PonenteActividad, Evento } = require('../models');
 const { MENSAJES_VALIDACION } = require('../constants/ponenteActividad.constants');
 
 class PonenteActividadValidator {
@@ -17,7 +17,14 @@ class PonenteActividadValidator {
             };
         }
 
-        const ponente = await Ponente.findByPk(id_ponente);
+        const ponente = await Ponente.findByPk(id_ponente, {
+            include: [{
+                model: require('./Usuario'),
+                as: 'usuario',
+                attributes: ['id', 'nombre', 'apellido']
+            }]
+        });
+
         if (!ponente) {
             return {
                 esValida: false,
@@ -26,7 +33,14 @@ class PonenteActividadValidator {
             };
         }
 
-        const actividad = await Actividad.findByPk(id_actividad);
+        const actividad = await Actividad.findByPk(id_actividad, {
+            include: [{
+                model: Evento,
+                as: 'evento',
+                attributes: ['id', 'nombre', 'id_empresa']
+            }]
+        });
+
         if (!actividad) {
             return {
                 esValida: false,
@@ -35,7 +49,6 @@ class PonenteActividadValidator {
             };
         }
 
-        // Verificar si ya existe la asignación
         const asignacionExistente = await PonenteActividad.findOne({
             where: { id_ponente, id_actividad }
         });

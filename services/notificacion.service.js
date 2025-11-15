@@ -1,4 +1,4 @@
-const { Notificacion, TipoNotificacion, Usuario, Evento, Actividad, Rol } = require('../models');
+const { Notificacion, TipoNotificacion, Usuario, Evento, Rol } = require('../models');
 const { MENSAJES, TIPOS_ENTIDAD, ESTADOS_NOTIFICACION } = require('../constants/notificacion.constants');
 
 class NotificacionService {
@@ -16,14 +16,8 @@ class NotificacionService {
             include: [
                 {
                     model: Usuario,
-                    as: 'organizador', // Usuario que creó el evento
+                    as: 'creador',
                     attributes: ['id', 'nombre', 'apellido', 'rol']
-                },
-                {
-                    model: Usuario,
-                    as: 'usuariosRelacionados', // Otros usuarios con acceso
-                    attributes: ['id', 'nombre', 'apellido', 'rol'],
-                    through: { attributes: [] }
                 }
             ]
         });
@@ -34,8 +28,8 @@ class NotificacionService {
 
         const responsables = [];
 
-        if (evento.organizador) {
-            responsables.push(evento.organizador);
+        if (evento.creador) {
+            responsables.push(evento.creador);
         }
 
         if (evento.id_empresa) {
@@ -53,13 +47,6 @@ class NotificacionService {
             responsables.push(...gerentes);
         }
 
-        if (evento.usuariosRelacionados) {
-            const organizadores = evento.usuariosRelacionados.filter(
-                u => u.rol === 'organizador' || u.rol === 'gerente'
-            );
-            responsables.push(...organizadores);
-        }
-
         const responsablesUnicos = responsables.reduce((acc, usuario) => {
             if (!acc.find(u => u.id === usuario.id)) {
                 acc.push(usuario);
@@ -67,7 +54,116 @@ class NotificacionService {
             return acc;
         }, []);
 
+        if (responsablesUnicos.length === 0) {
+            const admins = await Usuario.findAll({
+                where: { rol: 'admin' },
+                attributes: ['id', 'nombre', 'apellido', 'rol'],
+                limit: 3
+            });
+            return admins;
+        }
+
         return responsablesUnicos;
+    }
+
+    async crearNotificacionAsignacionPonente({ ponente, actividad, evento }, transaction) {
+        const tipoNotificacion = await TipoNotificacion.findOne({
+            where: { nombre: 'asignacion_ponente' }
+        });
+
+        const notificaciones = [];
+
+        const notificacionPonente = await this.crear({
+            id_TipoNotificacion: tipoNotificacion?.id || 1,
+            titulo: 'Invitación a actividad',
+            contenido: `Has sido invitado como ponente en la actividad "${actividad.titulo}" del evento "${evento.nombre}".`,
+            entidad_tipo: TIPOS_ENTIDAD.PONENTE_ACTIVIDAD,
+            entidad_id: ponente.id_ponente,
+            id_destinatario: ponente.id_usuario,
+            id_evento: evento.id,
+            datos_adicionales: {
+                id_ponente: ponente.id_ponente,
+                id_actividad: actividad.id_actividad,
+                nombre_evento: evento.nombre,
+                nombre_actividad: actividad.titulo,
+                fecha_actividad: actividad.fecha_actividad
+            },
+            estado: ESTADOS_NOTIFICACION.PENDIENTE,
+            prioridad: 'alta'
+        }, transaction);
+
+        notificaciones.push(notificacionPonente);
+
+        const responsables = await this.obtenerResponsablesEvento(evento.id);
+
+        for (const responsable of responsables) {
+            const notif = await this.crear({
+                id_TipoNotificacion: tipoNotificacion?.id || 1,
+                titulo: 'Nuevo ponente invitado',
+                contenido: `Se invitó a ${ponente.usuario?.nombre || 'un ponente'} ${ponente.usuario?.apellido || ''} a la actividad "${actividad.titulo}" del evento "${evento.nombre}".`,
+                entidad_tipo: TIPOS_ENTIDAD.PONENTE_ACTIVIDAD,
+                entidad_id: ponente.id_ponente,
+                id_destinatario: responsable.id,
+                id_evento: evento.id,
+                datos_adicionales: {
+                    id_ponente: ponente.id_ponente,
+                    id_actividad: actividad.id_actividad,
+                    nombre_evento: evento.nombre,
+                    nombre_actividad: actividad.titulo
+                },
+                estado: ESTADOS_NOTIFICACION.PENDIENTE,
+                prioridad: 'baja'
+            }, transaction);
+
+            notificaciones.push(notif);
+        }
+
+        return notificaciones;
+    }
+
+    async crearNotificacionRespuestaInvitacion({ asignacion, aceptada, motivo_rechazo, id_ponente_usuario }, transaction) {
+        const tipoNotificacion = await TipoNotificacion.findOne({
+            where: { nombre: aceptada ? 'invitacion_aceptada' : 'invitacion_rechazada' }
+        });
+
+        const responsables = await this.obtenerResponsablesEvento(asignacion.actividad.id_evento);
+
+        const notificaciones = [];
+
+        const titulo = aceptada
+            ? 'Ponente aceptó invitación'
+            : 'Ponente rechazó invitación';
+
+        const contenido = aceptada
+            ? `${asignacion.ponente.usuario.nombre} ${asignacion.ponente.usuario.apellido} ha aceptado la invitación para la actividad "${asignacion.actividad.titulo}" del evento "${asignacion.actividad.evento.nombre}".`
+            : `${asignacion.ponente.usuario.nombre} ${asignacion.ponente.usuario.apellido} ha rechazado la invitación para la actividad "${asignacion.actividad.titulo}". ${motivo_rechazo ? `Motivo: ${motivo_rechazo}` : ''}`;
+
+        for (const responsable of responsables) {
+            const notif = await this.crear({
+                id_TipoNotificacion: tipoNotificacion?.id || 1,
+                titulo,
+                contenido,
+                entidad_tipo: TIPOS_ENTIDAD.PONENTE_ACTIVIDAD,
+                entidad_id: asignacion.id_ponente,
+                id_destinatario: responsable.id,
+                id_evento: asignacion.actividad.id_evento,
+                datos_adicionales: {
+                    id_ponente: asignacion.id_ponente,
+                    id_actividad: asignacion.id_actividad,
+                    aceptada,
+                    motivo_rechazo,
+                    id_ponente_usuario,
+                    nombre_evento: asignacion.actividad.evento.nombre,
+                    nombre_actividad: asignacion.actividad.titulo
+                },
+                estado: ESTADOS_NOTIFICACION.PENDIENTE,
+                prioridad: aceptada ? 'media' : 'alta'
+            }, transaction);
+
+            notificaciones.push(notif);
+        }
+
+        return notificaciones;
     }
 
     async crearNotificacionSolicitudCambio({ asignacion, cambios_solicitados, justificacion, id_solicitante }, transaction) {
@@ -76,15 +172,6 @@ class NotificacionService {
         });
 
         const responsables = await this.obtenerResponsablesEvento(asignacion.actividad.id_evento);
-
-        if (responsables.length === 0) {
-            console.warn(`No se encontraron responsables para el evento ${asignacion.actividad.id_evento}`);
-            const admins = await Usuario.findAll({
-                where: { rol: 'admin' },
-                attributes: ['id']
-            });
-            responsables.push(...admins);
-        }
 
         const notificaciones = [];
 
@@ -151,58 +238,6 @@ class NotificacionService {
         }, transaction);
 
         return notificacion;
-    }
-
-    async crearNotificacionAsignacionPonente({ ponente, actividad, evento }, transaction) {
-        const tipoNotificacion = await TipoNotificacion.findOne({
-            where: { nombre: 'asignacion_ponente' }
-        });
-
-        const notificacionPonente = await this.crear({
-            id_TipoNotificacion: tipoNotificacion?.id || 1,
-            titulo: 'Asignación a actividad',
-            contenido: `Has sido asignado como ponente en la actividad "${actividad.titulo}" del evento "${evento.nombre}".`,
-            entidad_tipo: TIPOS_ENTIDAD.PONENTE_ACTIVIDAD,
-            entidad_id: ponente.id_ponente,
-            id_destinatario: ponente.id_usuario,
-            id_evento: evento.id,
-            datos_adicionales: {
-                id_ponente: ponente.id_ponente,
-                id_actividad: actividad.id_actividad,
-                nombre_evento: evento.nombre,
-                nombre_actividad: actividad.titulo,
-                fecha_actividad: actividad.fecha_actividad
-            },
-            estado: ESTADOS_NOTIFICACION.PENDIENTE,
-            prioridad: 'media'
-        }, transaction);
-
-        const responsables = await this.obtenerResponsablesEvento(evento.id);
-        const notificacionesResponsables = [];
-
-        for (const responsable of responsables) {
-            const notif = await this.crear({
-                id_TipoNotificacion: tipoNotificacion?.id || 1,
-                titulo: 'Nuevo ponente asignado',
-                contenido: `Se asignó a ${ponente.usuario?.nombre || 'un ponente'} a la actividad "${actividad.titulo}" del evento "${evento.nombre}".`,
-                entidad_tipo: TIPOS_ENTIDAD.PONENTE_ACTIVIDAD,
-                entidad_id: ponente.id_ponente,
-                id_destinatario: responsable.id,
-                id_evento: evento.id,
-                datos_adicionales: {
-                    id_ponente: ponente.id_ponente,
-                    id_actividad: actividad.id_actividad,
-                    nombre_evento: evento.nombre,
-                    nombre_actividad: actividad.titulo
-                },
-                estado: ESTADOS_NOTIFICACION.PENDIENTE,
-                prioridad: 'baja'
-            }, transaction);
-
-            notificacionesResponsables.push(notif);
-        }
-
-        return [notificacionPonente, ...notificacionesResponsables];
     }
 
     async obtenerPorUsuario(usuarioId, filtros = {}) {

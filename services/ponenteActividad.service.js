@@ -8,12 +8,17 @@ class PonenteActividadService {
     }
 
     async asignar(datosAsignacion, transaction) {
-        const asignacion = await PonenteActividad.create(datosAsignacion, { transaction });
+        const datos = {
+            ...datosAsignacion,
+            estado: datosAsignacion.estado || 'pendiente',
+            fecha_asignacion: new Date()
+        };
 
-        // Obtener datos completos para la respuesta
+        const asignacion = await PonenteActividad.create(datos, { transaction });
+
         const asignacionCompleta = await this.buscarPorIds(
-            datosAsignacion.id_ponente,
-            datosAsignacion.id_actividad,
+            datos.id_ponente,
+            datos.id_actividad,
             transaction
         );
 
@@ -104,7 +109,7 @@ class PonenteActividadService {
                     include: [{
                         model: Evento,
                         as: 'evento',
-                        attributes: ['id', 'nombre']
+                        attributes: ['id', 'nombre', 'id_empresa']
                     }]
                 }
             ],
@@ -119,13 +124,11 @@ class PonenteActividadService {
             throw new Error(MENSAJES.NO_ENCONTRADO);
         }
 
-        // Actualizar estado de la asignación
         await asignacion.update({
             estado: 'solicitud_cambio',
             notas: justificacion
         }, { transaction });
 
-        // Crear notificación para los administradores
         await NotificacionService.crearNotificacionSolicitudCambio({
             asignacion,
             cambios_solicitados,
@@ -151,7 +154,6 @@ class PonenteActividadService {
             notas: comentarios || asignacion.notas
         }, { transaction });
 
-        // Crear notificación para el ponente
         await NotificacionService.crearNotificacionRespuestaSolicitud({
             asignacion,
             aprobada,

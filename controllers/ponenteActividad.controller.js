@@ -1,7 +1,7 @@
 const PonenteActividadService = require('../services/ponenteActividad.service');
 const PonenteActividadValidator = require('../validators/ponenteActividad.validator');
-const PermisosService = require('../services/permisos.service');
 const AuditoriaService = require('../services/auditoriaService');
+const NotificacionService = require('../services/notificacion.service');
 const { MENSAJES } = require('../constants/ponenteActividad.constants');
 
 class PonenteActividadController {
@@ -11,7 +11,7 @@ class PonenteActividadController {
             const { id_ponente, id_actividad, estado, notas } = req.body;
             const usuario = req.usuario;
 
-            if (!['admin', 'organizador'].includes(usuario.rol)) {
+            if (!['admin', 'organizador', 'gerente'].includes(usuario.rol)) {
                 await transaction.rollback();
                 return res.status(403).json({
                     success: false,
@@ -35,13 +35,19 @@ class PonenteActividadController {
             const asignacion = await PonenteActividadService.asignar({
                 id_ponente,
                 id_actividad,
-                estado: estado || 'aceptado',
+                estado: estado || 'pendiente',
                 notas,
                 fecha_asignacion: new Date()
             }, transaction);
 
+            await NotificacionService.crearNotificacionAsignacionPonente({
+                ponente: validacion.ponente,
+                actividad: validacion.actividad,
+                evento: validacion.actividad.evento
+            }, transaction);
+
             await AuditoriaService.registrar({
-                mensaje: `Ponente ${validacion.ponente.especialidad} asignado a actividad ${validacion.actividad.titulo}`,
+                mensaje: `Ponente ${validacion.ponente.especialidad || validacion.ponente.usuario?.nombre} invitado a actividad ${validacion.actividad.titulo}`,
                 tipo: 'POST',
                 accion: 'asignar_ponente',
                 usuario: { id: usuario.id, nombre: usuario.nombre }
@@ -68,7 +74,6 @@ class PonenteActividadController {
     async obtenerPorActividad(req, res) {
         try {
             const { actividadId } = req.params;
-            const usuario = req.usuario;
 
             const resultado = await PonenteActividadService.obtenerPorActividad(actividadId);
 
@@ -98,7 +103,6 @@ class PonenteActividadController {
     async obtenerPorPonente(req, res) {
         try {
             const { ponenteId } = req.params;
-            const usuario = req.usuario;
 
             const resultado = await PonenteActividadService.obtenerPorPonente(ponenteId);
 
@@ -128,7 +132,6 @@ class PonenteActividadController {
     async obtenerAsignacion(req, res) {
         try {
             const { ponenteId, actividadId } = req.params;
-            const usuario = req.usuario;
 
             const asignacion = await PonenteActividadService.buscarPorIds(ponenteId, actividadId);
 
@@ -154,14 +157,21 @@ class PonenteActividadController {
         }
     }
 
-    async solicitarCambio(req, res) {
+    async responderInvitacion(req, res) {
         const transaction = await PonenteActividadService.crearTransaccion();
         try {
             const { ponenteId, actividadId } = req.params;
-            const { cambios_solicitados, justificacion } = req.body;
+            const { aceptar, motivo_rechazo } = req.body;
             const usuario = req.usuario;
 
-            // Validar que el usuario sea el ponente de esta actividad
+            if (aceptar === undefined || aceptar === null) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'Debes indicar si aceptas o rechazas la invitación'
+                });
+            }
+
             const asignacion = await PonenteActividadService.buscarPorIds(ponenteId, actividadId, transaction);
 
             if (!asignacion) {
@@ -172,7 +182,83 @@ class PonenteActividadController {
                 });
             }
 
-            if (asignacion.ponente.id_usuario !== usuario.id && !['admin', 'organizador'].includes(usuario.rol)) {
+            if (asignacion.ponente.id_usuario !== usuario.id) {
+                await transaction.rollback();
+                return res.status(403).json({
+                    success: false,
+                    message: MENSAJES.SOLO_PONENTE_PUEDE_RESPONDER
+                });
+            }
+
+            if (asignacion.estado !== 'pendiente') {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: `No puedes responder esta invitación. Estado actual: ${asignacion.estado}`
+                });
+            }
+
+            const nuevoEstado = aceptar ? 'aceptado' : 'rechazado';
+            const notas = aceptar
+                ? 'Invitación aceptada por el ponente'
+                : `Invitación rechazada. Motivo: ${motivo_rechazo || 'No especificado'}`;
+
+            await asignacion.update({
+                estado: nuevoEstado,
+                fecha_respuesta: new Date(),
+                notas
+            }, { transaction });
+
+            await NotificacionService.crearNotificacionRespuestaInvitacion({
+                asignacion,
+                aceptada: aceptar,
+                motivo_rechazo,
+                id_ponente_usuario: usuario.id
+            }, transaction);
+
+            await AuditoriaService.registrar({
+                mensaje: `Ponente ${aceptar ? 'aceptó' : 'rechazó'} invitación a actividad ${asignacion.actividad.titulo}`,
+                tipo: 'PUT',
+                accion: 'responder_invitacion_ponente',
+                usuario: { id: usuario.id, nombre: usuario.nombre }
+            });
+
+            await transaction.commit();
+
+            return res.json({
+                success: true,
+                message: aceptar ? MENSAJES.INVITACION_ACEPTADA : MENSAJES.INVITACION_RECHAZADA,
+                data: asignacion
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('Error al responder invitación:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Error al procesar respuesta',
+                error: error.message
+            });
+        }
+    }
+
+    async solicitarCambio(req, res) {
+        const transaction = await PonenteActividadService.crearTransaccion();
+        try {
+            const { ponenteId, actividadId } = req.params;
+            const { cambios_solicitados, justificacion } = req.body;
+            const usuario = req.usuario;
+
+            const asignacion = await PonenteActividadService.buscarPorIds(ponenteId, actividadId, transaction);
+
+            if (!asignacion) {
+                await transaction.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: MENSAJES.NO_ENCONTRADO
+                });
+            }
+
+            if (asignacion.ponente.id_usuario !== usuario.id && !['admin', 'organizador', 'gerente'].includes(usuario.rol)) {
                 await transaction.rollback();
                 return res.status(403).json({
                     success: false,
@@ -233,8 +319,7 @@ class PonenteActividadController {
             const { aprobada, comentarios } = req.body;
             const usuario = req.usuario;
 
-            // Solo admin/organizador puede procesar solicitudes
-            if (!['admin', 'organizador'].includes(usuario.rol)) {
+            if (!['admin', 'organizador', 'gerente'].includes(usuario.rol)) {
                 await transaction.rollback();
                 return res.status(403).json({
                     success: false,
@@ -282,8 +367,7 @@ class PonenteActividadController {
             const { estado, notas } = req.body;
             const usuario = req.usuario;
 
-            // Solo admin/organizador
-            if (!['admin', 'organizador'].includes(usuario.rol)) {
+            if (!['admin', 'organizador', 'gerente'].includes(usuario.rol)) {
                 await transaction.rollback();
                 return res.status(403).json({
                     success: false,
@@ -346,8 +430,7 @@ class PonenteActividadController {
             const { ponenteId, actividadId } = req.params;
             const usuario = req.usuario;
 
-            // Solo admin/organizador
-            if (!['admin', 'organizador'].includes(usuario.rol)) {
+            if (!['admin', 'organizador', 'gerente'].includes(usuario.rol)) {
                 await transaction.rollback();
                 return res.status(403).json({
                     success: false,

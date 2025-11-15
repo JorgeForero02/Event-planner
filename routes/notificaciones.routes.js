@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const NotificacionController = require('../controllers/notificacion.controller');
-const {auth} = require('../middlewares/auth');
+const { auth } = require('../middlewares/auth');
 
 router.get('/mis-notificaciones', auth, NotificacionController.obtenerMisNotificaciones);
 
