@@ -7,10 +7,9 @@ const { MENSAJES } = require('../constants/ubicacion.constants');
 class UbicacionController {
     async crearUbicacion(req, res) {
         const transaction = await UbicacionService.crearTransaccion();
-
         try {
             const { empresaId } = req.params;
-            const { lugar, direccion, capacidad, descripcion, id_ciudad } = req.body;
+            const { lugar, direccion, descripcion, id_ciudad } = req.body;
             const usuario = req.usuario;
 
             const tienePermiso = PermisosService.verificarAccesoEmpresa(
@@ -29,7 +28,6 @@ class UbicacionController {
 
             const validacion = await UbicacionValidator.validarCreacion({
                 direccion,
-                capacidad,
                 id_ciudad,
                 empresaId
             });
@@ -46,7 +44,6 @@ class UbicacionController {
                 id_empresa: empresaId,
                 lugar,
                 direccion,
-                capacidad,
                 descripcion,
                 id_ciudad
             }, transaction);
@@ -61,7 +58,7 @@ class UbicacionController {
             await transaction.commit();
 
             return res.status(201).json({
-                success: true,
+                success: false,
                 message: MENSAJES.CREADA,
                 data: resultado.ubicacion
             });
@@ -79,7 +76,7 @@ class UbicacionController {
     async obtenerUbicacionesEmpresa(req, res) {
         try {
             const { empresaId } = req.params;
-            const usuario = req.usuario; 
+            const usuario = req.usuario;
 
             const tienePermiso = PermisosService.verificarAccesoEmpresa(
                 usuario.rol,
@@ -90,7 +87,7 @@ class UbicacionController {
             if (!tienePermiso) {
                 return res.status(403).json({
                     success: false,
-                    message: MENSAJES.SIN_PERMISO_VER 
+                    message: MENSAJES.SIN_PERMISO_VER
                 });
             }
 
@@ -122,7 +119,7 @@ class UbicacionController {
     async obtenerUbicacionById(req, res) {
         try {
             const { ubicacionId } = req.params;
-            const usuario = req.usuario; 
+            const usuario = req.usuario;
 
             const ubicacion = await UbicacionService.buscarPorId(ubicacionId);
 
@@ -136,13 +133,13 @@ class UbicacionController {
             const tienePermiso = PermisosService.verificarAccesoEmpresa(
                 usuario.rol,
                 usuario.rolData?.id_empresa,
-                ubicacion.id_empresa 
+                ubicacion.id_empresa
             );
 
             if (!tienePermiso) {
                 return res.status(403).json({
                     success: false,
-                    message: MENSAJES.SIN_PERMISO_VER 
+                    message: MENSAJES.SIN_PERMISO_VER
                 });
             }
 
@@ -160,12 +157,12 @@ class UbicacionController {
             });
         }
     }
+
     async actualizarUbicacion(req, res) {
         const transaction = await UbicacionService.crearTransaccion();
-
         try {
             const { ubicacionId } = req.params;
-            const { lugar, direccion, capacidad, descripcion } = req.body;
+            const { lugar, direccion, descripcion } = req.body;
             const usuario = req.usuario;
 
             const ubicacion = await UbicacionService.buscarPorId(ubicacionId, transaction);
@@ -192,20 +189,9 @@ class UbicacionController {
                 });
             }
 
-            const validacion = UbicacionValidator.validarActualizacion({ capacidad });
-
-            if (!validacion.esValida) {
-                await transaction.rollback();
-                return res.status(400).json({
-                    success: false,
-                    message: validacion.mensaje
-                });
-            }
-
             const actualizaciones = UbicacionService.construirActualizaciones({
                 lugar,
                 direccion,
-                capacidad,
                 descripcion
             });
 
@@ -238,7 +224,6 @@ class UbicacionController {
 
     async eliminarUbicacion(req, res) {
         const transaction = await UbicacionService.crearTransaccion();
-
         try {
             const { ubicacionId } = req.params;
             const usuario = req.usuario;

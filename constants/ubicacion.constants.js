@@ -20,7 +20,6 @@ const MENSAJES_VALIDACION = {
     DIRECCION_REQUERIDA: 'La dirección es requerida y debe tener al menos 3 caracteres',
     CIUDAD_REQUERIDA: 'La ciudad es requerida',
     CIUDAD_NO_ENCONTRADA: 'Ciudad no encontrada',
-    CAPACIDAD_INVALIDA: 'La capacidad, si se especifica, debe ser al menos 1',
     EMPRESA_NO_ENCONTRADA: 'Empresa no encontrada'
 };
 

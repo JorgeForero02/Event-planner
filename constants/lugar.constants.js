@@ -20,6 +20,7 @@ const MENSAJES = {
 const MENSAJES_VALIDACION = {
     NOMBRE_REQUERIDO: 'El nombre es requerido y debe tener al menos 3 caracteres',
     UBICACION_REQUERIDA: 'La ubicación es requerida',
+    CAPACIDAD_INVALIDA: 'La capacidad, si se especifica, debe ser al menos 1',
     EMPRESA_NO_ENCONTRADA: 'Empresa no encontrada',
     UBICACION_NO_PERTENECE: 'Ubicación no encontrada o no pertenece a esta empresa'
 };

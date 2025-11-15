@@ -1,4 +1,5 @@
 ﻿const sequelize = require('../config/database');
+
 const Usuario = require('./Usuario');
 const Administrador = require('./Administrador');
 const Asistente = require('./Asistente');
@@ -19,7 +20,6 @@ const TipoNotificacion = require('./TipoNotificacion');
 const Notificacion = require('./Notificacion');
 const Auditoria = require('./Auditoria');
 
-// Relaciones
 Usuario.hasOne(Administrador, { foreignKey: 'id_usuario', as: 'administrador' });
 Administrador.belongsTo(Usuario, { foreignKey: 'id_usuario', as: 'usuario' });
 
@@ -35,6 +35,22 @@ AdministradorEmpresa.belongsTo(Usuario, { foreignKey: 'id_usuario', as: 'usuario
 Empresa.hasMany(AdministradorEmpresa, { foreignKey: 'id_empresa', as: 'administradores' });
 AdministradorEmpresa.belongsTo(Empresa, { foreignKey: 'id_empresa', as: 'empresa' });
 
+Empresa.belongsTo(Pais, { foreignKey: 'id_pais', as: 'pais' });
+Empresa.belongsTo(Ciudad, { foreignKey: 'id_ciudad', as: 'ciudad' });
+Empresa.belongsTo(Usuario, { foreignKey: 'id_creador', as: 'creador' });
+
+Pais.hasMany(Empresa, { foreignKey: 'id_pais', as: 'empresas' });
+Ciudad.hasMany(Empresa, { foreignKey: 'id_ciudad', as: 'empresas' });
+Usuario.hasMany(Empresa, { foreignKey: 'id_creador', as: 'empresasCreadas' });
+
+Empresa.hasMany(Ubicacion, { foreignKey: 'id_empresa', as: 'ubicaciones' });
+Ubicacion.belongsTo(Empresa, { foreignKey: 'id_empresa', as: 'empresa' });
+
+Empresa.hasMany(Lugar, { foreignKey: 'id_empresa', as: 'lugares' });
+Lugar.belongsTo(Empresa, { foreignKey: 'id_empresa', as: 'empresa' });
+
+Empresa.hasMany(Evento, { foreignKey: 'id_empresa', as: 'eventos' });
+
 Pais.hasMany(Ciudad, { foreignKey: 'id_pais', as: 'ciudades' });
 Ciudad.belongsTo(Pais, { foreignKey: 'id_pais', as: 'pais' });
 
@@ -44,14 +60,18 @@ Ubicacion.belongsTo(Ciudad, { foreignKey: 'id_ciudad', as: 'ciudad' });
 Ubicacion.hasMany(Lugar, { foreignKey: 'id_ubicacion', as: 'lugares' });
 Lugar.belongsTo(Ubicacion, { foreignKey: 'id_ubicacion', as: 'ubicacion' });
 
+Evento.belongsTo(Empresa, { foreignKey: 'id_empresa', as: 'empresa' });
+Evento.belongsTo(Usuario, { foreignKey: 'id_creador', as: 'creador' });
+Usuario.hasMany(Evento, { foreignKey: 'id_creador', as: 'eventosCreados' });
+
 Evento.hasMany(Actividad, { foreignKey: 'id_evento', as: 'actividades' });
 Actividad.belongsTo(Evento, { foreignKey: 'id_evento', as: 'evento' });
 
-Empresa.hasMany(Ubicacion, { foreignKey: 'id_empresa', as: 'ubicaciones' });
-Ubicacion.belongsTo(Empresa, { foreignKey: 'id_empresa', as: 'empresa' });
+Evento.hasMany(Inscripcion, { foreignKey: 'id_evento', as: 'inscripciones' });
+Inscripcion.belongsTo(Evento, { foreignKey: 'id_evento', as: 'evento' });
 
-Empresa.hasMany(Lugar, { foreignKey: 'id_empresa', as: 'lugares' });
-Lugar.belongsTo(Empresa, { foreignKey: 'id_empresa', as: 'empresa' });
+Evento.hasMany(Notificacion, { foreignKey: 'id_evento', as: 'notificaciones' });
+Notificacion.belongsTo(Evento, { foreignKey: 'id_evento', as: 'evento' });
 
 Actividad.belongsToMany(Lugar, {
   through: LugarActividad,
@@ -59,11 +79,19 @@ Actividad.belongsToMany(Lugar, {
   otherKey: 'id_lugar',
   as: 'lugares'
 });
+
 Lugar.belongsToMany(Actividad, {
   through: LugarActividad,
   foreignKey: 'id_lugar',
   otherKey: 'id_actividad',
   as: 'actividades'
+});
+
+Actividad.belongsToMany(Ponente, {
+  through: PonenteActividad,
+  foreignKey: 'id_actividad',
+  otherKey: 'id_ponente',
+  as: 'ponentes'
 });
 
 Ponente.belongsToMany(Actividad, {
@@ -72,46 +100,57 @@ Ponente.belongsToMany(Actividad, {
   otherKey: 'id_actividad',
   as: 'actividades'
 });
-Actividad.belongsToMany(Ponente, {
-  through: PonenteActividad,
+
+PonenteActividad.belongsTo(Ponente, {
+  foreignKey: 'id_ponente',
+  as: 'ponente'
+});
+
+PonenteActividad.belongsTo(Actividad, {
   foreignKey: 'id_actividad',
-  otherKey: 'id_ponente',
-  as: 'ponentes'
+  as: 'actividad'
+});
+
+Ponente.hasMany(PonenteActividad, {
+  foreignKey: 'id_ponente',
+  as: 'asignaciones'
+});
+
+Actividad.hasMany(PonenteActividad, {
+  foreignKey: 'id_actividad',
+  as: 'asignaciones'
+});
+LugarActividad.belongsTo(Lugar, {
+  foreignKey: 'id_lugar',
+  as: 'lugar'
+});
+
+LugarActividad.belongsTo(Actividad, {
+  foreignKey: 'id_actividad',
+  as: 'actividad'
+});
+
+Lugar.hasMany(LugarActividad, {
+  foreignKey: 'id_lugar',
+  as: 'asignaciones'
+});
+
+Actividad.hasMany(LugarActividad, {
+  foreignKey: 'id_actividad',
+  as: 'lugarAsignaciones'
 });
 
 Asistente.hasMany(Inscripcion, { foreignKey: 'id_asistente', as: 'inscripciones' });
 Inscripcion.belongsTo(Asistente, { foreignKey: 'id_asistente', as: 'asistente' });
 
-Evento.hasMany(Inscripcion, { foreignKey: 'id_evento', as: 'inscripciones' });
-Inscripcion.belongsTo(Evento, { foreignKey: 'id_evento', as: 'evento' });
-
 Inscripcion.hasMany(Asistencia, { foreignKey: 'inscripcion', as: 'asistencias' });
 Asistencia.belongsTo(Inscripcion, { foreignKey: 'inscripcion', as: 'inscripcionInfo' });
 
 TipoNotificacion.hasMany(Notificacion, { foreignKey: 'id_TipoNotificacion', as: 'notificaciones' });
-Notificacion.belongsTo(TipoNotificacion, { foreignKey: 'id_TipoNotificacion', as: 'tipo' });
+Notificacion.belongsTo(TipoNotificacion, { foreignKey: 'id_TipoNotificacion', as: 'tipoNotificacion' });
 
-Evento.hasMany(Notificacion, { foreignKey: 'id_evento', as: 'notificaciones' });
-Notificacion.belongsTo(Evento, { foreignKey: 'id_evento', as: 'evento' });
-
-Empresa.belongsTo(Pais, { foreignKey: 'id_pais', as: 'pais' });
-Empresa.belongsTo(Ciudad, { foreignKey: 'id_ciudad', as: 'ciudad' });
-
-Pais.hasMany(Empresa, { foreignKey: 'id_pais', as: 'empresas' });
-Ciudad.hasMany(Empresa, { foreignKey: 'id_ciudad', as: 'empresas' });
-
-Empresa.belongsTo(Usuario, { foreignKey: 'id_creador', as: 'creador' });
-Usuario.hasMany(Empresa, { foreignKey: 'id_creador', as: 'empresasCreadas' });
-
-
-// Relaciones con Evento
-Evento.belongsTo(Empresa, { foreignKey: 'id_empresa', as: 'empresa' });
-Evento.belongsTo(Usuario, { foreignKey: 'id_creador', as: 'creador' });
-
-// Relaciones inversas
-Empresa.hasMany(Evento, { foreignKey: 'id_empresa', as: 'eventos' });
-Usuario.hasMany(Evento, { foreignKey: 'id_creador', as: 'eventosCreados' });
-
+Usuario.hasMany(Notificacion, { foreignKey: 'id_destinatario', as: 'notificaciones' });
+Notificacion.belongsTo(Usuario, { foreignKey: 'id_destinatario', as: 'destinatario' });
 
 const db = {
   sequelize,

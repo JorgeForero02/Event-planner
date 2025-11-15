@@ -18,7 +18,6 @@ class LugarService {
         ]);
 
         const lugar = await Lugar.create(datosLugar, { transaction });
-
         return {
             lugar,
             empresa,
@@ -28,7 +27,6 @@ class LugarService {
 
     async obtenerPorEmpresa(empresaId) {
         const empresa = await Empresa.findByPk(empresaId);
-
         if (!empresa) {
             return {
                 exito: false,
@@ -41,7 +39,7 @@ class LugarService {
             include: [{
                 model: Ubicacion,
                 as: 'ubicacion',
-                attributes: ['id', 'direccion', 'lugar', 'capacidad']
+                attributes: ['id', 'direccion', 'lugar']
             }],
             order: [['nombre', 'ASC']]
         });
@@ -58,7 +56,7 @@ class LugarService {
                 {
                     model: Ubicacion,
                     as: 'ubicacion',
-                    attributes: ['id', 'direccion', 'lugar', 'capacidad', 'id_empresa']
+                    attributes: ['id', 'direccion', 'lugar', 'id_empresa']
                 },
                 {
                     model: Empresa,
@@ -70,10 +68,11 @@ class LugarService {
         });
     }
 
-    construirActualizaciones({ nombre, descripcion }) {
+    construirActualizaciones({ nombre, descripcion, capacidad }) {
         const actualizaciones = {};
         if (nombre !== undefined) actualizaciones.nombre = nombre;
         if (descripcion !== undefined) actualizaciones.descripcion = descripcion;
+        if (capacidad !== undefined) actualizaciones.capacidad = capacidad;
         return actualizaciones;
     }
 
@@ -82,7 +81,6 @@ class LugarService {
             where: { id_lugar: lugarId },
             transaction
         });
-
         return !!lugarEnActividades;
     }
 }

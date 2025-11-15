@@ -7,10 +7,9 @@ const { MENSAJES } = require('../constants/lugar.constants');
 class LugarController {
     async crearLugar(req, res) {
         const transaction = await LugarService.crearTransaccion();
-
         try {
             const { empresaId } = req.params;
-            const { nombre, descripcion, id_ubicacion } = req.body;
+            const { nombre, descripcion, id_ubicacion, capacidad } = req.body;
             const usuario = req.usuario;
 
             const tienePermiso = PermisosService.verificarAccesoEmpresa(
@@ -28,7 +27,7 @@ class LugarController {
             }
 
             const validacion = await LugarValidator.validarCreacion(
-                { nombre, descripcion, id_ubicacion },
+                { nombre, descripcion, id_ubicacion, capacidad },
                 empresaId
             );
 
@@ -44,7 +43,8 @@ class LugarController {
                 id_empresa: empresaId,
                 nombre,
                 descripcion,
-                id_ubicacion
+                id_ubicacion,
+                capacidad
             }, transaction);
 
             await AuditoriaService.registrar({
@@ -75,7 +75,7 @@ class LugarController {
     async obtenerLugaresEmpresa(req, res) {
         try {
             const { empresaId } = req.params;
-            const usuario = req.usuario; 
+            const usuario = req.usuario;
 
             const tienePermiso = PermisosService.verificarAccesoEmpresa(
                 usuario.rol,
@@ -86,7 +86,7 @@ class LugarController {
             if (!tienePermiso) {
                 return res.status(403).json({
                     success: false,
-                    message: MENSAJES.SIN_PERMISO_VER 
+                    message: MENSAJES.SIN_PERMISO_VER
                 });
             }
 
@@ -118,7 +118,7 @@ class LugarController {
     async obtenerLugarById(req, res) {
         try {
             const { lugarId } = req.params;
-            const usuario = req.usuario; 
+            const usuario = req.usuario;
 
             const lugar = await LugarService.buscarPorId(lugarId);
 
@@ -132,13 +132,13 @@ class LugarController {
             const tienePermiso = PermisosService.verificarAccesoEmpresa(
                 usuario.rol,
                 usuario.rolData?.id_empresa,
-                lugar.id_empresa 
+                lugar.id_empresa
             );
 
             if (!tienePermiso) {
                 return res.status(403).json({
                     success: false,
-                    message: MENSAJES.SIN_PERMISO_VER 
+                    message: MENSAJES.SIN_PERMISO_VER
                 });
             }
 
@@ -159,10 +159,9 @@ class LugarController {
 
     async actualizarLugar(req, res) {
         const transaction = await LugarService.crearTransaccion();
-
         try {
             const { lugarId } = req.params;
-            const { nombre, descripcion } = req.body;
+            const { nombre, descripcion, capacidad } = req.body;
             const usuario = req.usuario;
 
             const lugar = await LugarService.buscarPorId(lugarId, transaction);
@@ -189,7 +188,12 @@ class LugarController {
                 });
             }
 
-            const actualizaciones = LugarService.construirActualizaciones({ nombre, descripcion });
+            const actualizaciones = LugarService.construirActualizaciones({
+                nombre,
+                descripcion,
+                capacidad
+            });
+
             await lugar.update(actualizaciones, { transaction });
 
             await AuditoriaService.registrar({
@@ -219,7 +223,6 @@ class LugarController {
 
     async eliminarLugar(req, res) {
         const transaction = await LugarService.crearTransaccion();
-
         try {
             const { lugarId } = req.params;
             const usuario = req.usuario;

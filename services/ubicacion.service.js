@@ -13,7 +13,6 @@ class UbicacionService {
         ]);
 
         const ubicacion = await Ubicacion.create(datosUbicacion, { transaction });
-
         return {
             ubicacion,
             empresa,
@@ -23,7 +22,6 @@ class UbicacionService {
 
     async obtenerPorEmpresa(empresaId) {
         const empresa = await Empresa.findByPk(empresaId);
-
         if (!empresa) {
             return {
                 exito: false,
@@ -57,11 +55,10 @@ class UbicacionService {
         });
     }
 
-    construirActualizaciones({ lugar, direccion, capacidad, descripcion }) {
+    construirActualizaciones({ lugar, direccion, descripcion }) {
         const actualizaciones = {};
         if (lugar !== undefined) actualizaciones.lugar = lugar;
         if (direccion !== undefined) actualizaciones.direccion = direccion;
-        if (capacidad !== undefined) actualizaciones.capacidad = capacidad;
         if (descripcion !== undefined) actualizaciones.descripcion = descripcion;
         return actualizaciones;
     }

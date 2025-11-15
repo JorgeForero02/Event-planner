@@ -13,5 +13,7 @@ router.use('/lugares', require('./lugar.routes'));
 router.use('/ubicaciones', require('./ubicacion.routes'));
 router.use('/inscripciones', require('./inscripcion.routes'));
 router.use('/asistencias', require('./asistencia.routes'));
+router.use('/ponente-actividad', require('./ponenteActividad.routes'));
+router.use('/notificaciones', require('./notificaciones.routes'));
 
 module.exports = router;

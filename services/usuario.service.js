@@ -133,7 +133,7 @@ class UsuarioService {
 
     async buscarCompletoConRol(id) {
         const usuario = await Usuario.findByPk(id, {
-            attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo']
+            attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo', 'activo']
         });
 
         if (!usuario) return null;
@@ -271,7 +271,7 @@ class UsuarioService {
 
     async obtenerTodosCompletos() {
         const usuarios = await Usuario.findAll({
-            attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo']
+            attributes: ['id', 'nombre', 'cedula', 'telefono', 'correo', 'activo']
         });
 
         return await Promise.all(
