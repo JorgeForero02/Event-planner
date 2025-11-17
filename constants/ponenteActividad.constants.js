@@ -19,6 +19,7 @@ const MENSAJES = {
     SIN_PERMISO_MODIFICAR: 'No tiene permisos para modificar esta asignación',
     SIN_PERMISO_ELIMINAR: 'No tiene permisos para eliminar esta asignación',
     SIN_PERMISO_VER: 'No tiene permisos para ver esta información',
+    LISTA_PONENTES_OBTENIDA: 'Lista de ponentes disponibles obtenida exitosamente.',
     ERROR_CREAR: 'Error al asignar ponente',
     ERROR_ACTUALIZAR: 'Error al actualizar asignación',
     ERROR_ELIMINAR: 'Error al eliminar asignación',
