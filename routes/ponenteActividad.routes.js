@@ -9,6 +9,8 @@ router.get('/actividad/:actividadId', auth, PonenteActividadController.obtenerPo
 
 router.get('/ponente/:ponenteId', auth, PonenteActividadController.obtenerPorPonente);
 
+router.get('/ponentes', auth, isAdminGerenteOrOrganizador, PonenteActividadController.obtenerPonentesDisponibles);
+
 router.put('/:ponenteId/:actividadId/responder-invitacion', auth, PonenteActividadController.responderInvitacion);
 
 router.post('/:ponenteId/:actividadId/solicitar-cambio', auth, PonenteActividadController.solicitarCambio);

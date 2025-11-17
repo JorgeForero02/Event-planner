@@ -4,6 +4,7 @@ const AuthValidator = require('../validators/auth.validator');
 const TokenService = require('../services/token.service');
 const AuditoriaService = require('../services/auditoriaService');
 const EmailService = require('../services/emailService');
+const NotificacionService = require('../services/notificacion.service');
 const ApiResponse = require('../utils/response');
 const { CODIGOS_HTTP, MENSAJES, ROLES_PERMITIDOS } = require('../constants/auth.constants');
 
@@ -156,6 +157,24 @@ class AuthController {
                     success: false,
                     message: resultado.mensaje
                 });
+            }
+
+            try {
+                const { usuario, empresa } = resultado.datos;
+
+                await EmailService.enviarPromocionGerente(
+                    usuario.correo,
+                    usuario.nombre,
+                    empresa.nombre
+                );
+
+                await NotificacionService.crearNotificacionPromocionGerente(
+                    usuario,
+                    empresa
+                );
+
+            } catch (errorNotificacion) {
+                console.error('Error al enviar notificaciones de promoción a gerente:', errorNotificacion);
             }
 
             return res.json({

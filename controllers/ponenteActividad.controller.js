@@ -2,6 +2,7 @@ const PonenteActividadService = require('../services/ponenteActividad.service');
 const PonenteActividadValidator = require('../validators/ponenteActividad.validator');
 const AuditoriaService = require('../services/auditoriaService');
 const NotificacionService = require('../services/notificacion.service');
+const EmailService = require('../services/emailService');
 const { MENSAJES } = require('../constants/ponenteActividad.constants');
 
 class PonenteActividadController {
@@ -55,17 +56,60 @@ class PonenteActividadController {
 
             await transaction.commit();
 
+            try {
+                await EmailService.enviarInvitacionPonente(
+                    validacion.ponente.usuario.correo,
+                    validacion.ponente.usuario.nombre,
+                    usuario.nombre,
+                    validacion.actividad.titulo,
+                    validacion.actividad.evento.titulo
+                );
+            } catch (emailError) {
+                console.error('Error enviando email de invitación a ponente (asignación ya creada):', emailError);
+            }
+
             return res.status(201).json({
                 success: true,
                 message: MENSAJES.ASIGNADO,
                 data: asignacion
             });
         } catch (error) {
-            await transaction.rollback();
+            if (transaction && !transaction.finished) { 
+                await transaction.rollback();
+            }
             console.error('Error al asignar ponente:', error);
             return res.status(500).json({
                 success: false,
                 message: MENSAJES.ERROR_CREAR,
+                error: error.message
+            });
+        }
+    }
+
+    async obtenerPonentesDisponibles(req, res) {
+        try {
+            const usuario = req.usuario;
+
+            if (!['admin', 'organizador', 'gerente'].includes(usuario.rol)) {
+                return res.status(403).json({
+                    success: false,
+                    message: MENSAJES.SIN_PERMISO_VER
+                });
+            }
+            const resultado = await PonenteActividadService.obtenerPonentesDisponibles();
+
+            return res.json({
+                success: true,
+                message: MENSAJES.LISTA_PONENTES_OBTENIDA,
+                total: resultado.ponentes.length,
+                data: resultado.ponentes
+            });
+
+        } catch (error) {
+            console.error('Error al obtener ponentes disponibles:', error);
+            return res.status(500).json({
+                success: false,
+                message: MENSAJES.ERROR_OBTENER,
                 error: error.message
             });
         }
@@ -225,13 +269,31 @@ class PonenteActividadController {
 
             await transaction.commit();
 
+            try {
+                const responsables = await NotificacionService.obtenerResponsablesEvento(asignacion.actividad.id_evento);
+
+                for (const responsable of responsables) {
+                    await EmailService.enviarNotificacionRespuestaPonente(
+                        responsable.correo,
+                        responsable.nombre,
+                        usuario.nombre, 
+                        asignacion.actividad.titulo,
+                        aceptar 
+                    );
+                }
+            } catch (emailError) {
+                console.error('Error enviando emails de respuesta de ponente (respuesta ya registrada):', emailError);
+            }
+
             return res.json({
                 success: true,
                 message: aceptar ? MENSAJES.INVITACION_ACEPTADA : MENSAJES.INVITACION_RECHAZADA,
                 data: asignacion
             });
         } catch (error) {
+            if(transaction && !transaction.finished) {
             await transaction.rollback();
+            }
             console.error('Error al responder invitación:', error);
             return res.status(500).json({
                 success: false,
@@ -428,7 +490,7 @@ class PonenteActividadController {
         const transaction = await PonenteActividadService.crearTransaccion();
         try {
             const { ponenteId, actividadId } = req.params;
-            const usuario = req.usuario;
+            const usuario = req.usuario; 
 
             if (!['admin', 'organizador', 'gerente'].includes(usuario.rol)) {
                 await transaction.rollback();
@@ -448,6 +510,14 @@ class PonenteActividadController {
                 });
             }
 
+            const datosEmail = {
+                destinatario: asignacion.ponente.usuario.correo,
+                nombrePonente: asignacion.ponente.usuario.nombre,
+                nombreActividad: asignacion.actividad.titulo,
+                nombreEvento: asignacion.actividad.evento.titulo,
+                nombreOrganizador: usuario.nombre
+            };
+
             await asignacion.destroy({ transaction });
 
             await AuditoriaService.registrar({
@@ -459,12 +529,26 @@ class PonenteActividadController {
 
             await transaction.commit();
 
+            try {
+                await EmailService.enviarNotificacionPonenteRemovido(
+                    datosEmail.destinatario,
+                    datosEmail.nombrePonente,
+                    datosEmail.nombreActividad,
+                    datosEmail.nombreEvento,
+                    datosEmail.nombreOrganizador
+                );
+            } catch (emailError) {
+                console.error('Error enviando email de ponente removido (asignación ya eliminada):', emailError);
+            }
+
             return res.json({
                 success: true,
                 message: MENSAJES.ELIMINADO
             });
         } catch (error) {
-            await transaction.rollback();
+            if (transaction && !transaction.finished) {
+                await transaction.rollback();
+            }
             console.error('Error al eliminar asignación:', error);
             return res.status(500).json({
                 success: false,
