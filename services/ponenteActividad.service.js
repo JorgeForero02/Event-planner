@@ -1,6 +1,7 @@
 const { PonenteActividad, Ponente, Actividad, Usuario, Evento } = require('../models');
 const { MENSAJES } = require('../constants/ponenteActividad.constants');
 const NotificacionService = require('./notificacion.service');
+const EmailService = require('./emailService');
 
 class PonenteActividadService {
     crearTransaccion() {
@@ -23,6 +24,21 @@ class PonenteActividadService {
         );
 
         return asignacionCompleta;
+    }
+
+    async obtenerPonentesDisponibles() {
+        const ponentes = await Ponente.findAll({
+            include: [{
+                model: Usuario,
+                as: 'usuario',
+                attributes: ['id', 'nombre', 'correo', 'telefono', 'cedula'],
+                where: { activo: 1 }, 
+                required: true 
+            }],
+            order: [[{ model: Usuario, as: 'usuario' }, 'nombre', 'ASC']] 
+        });
+
+        return { exito: true, ponentes };
     }
 
     async obtenerPorActividad(actividadId) {
@@ -74,7 +90,7 @@ class PonenteActividadService {
                     include: [{
                         model: Evento,
                         as: 'evento',
-                        attributes: ['id', 'nombre', 'fecha_inicio', 'fecha_fin']
+                        attributes: ['id', 'titulo', 'fecha_inicio', 'fecha_fin']
                     }]
                 }
             ],
@@ -109,7 +125,7 @@ class PonenteActividadService {
                     include: [{
                         model: Evento,
                         as: 'evento',
-                        attributes: ['id', 'nombre', 'id_empresa']
+                        attributes: ['id', 'titulo', 'id_empresa']
                     }]
                 }
             ],
@@ -136,6 +152,23 @@ class PonenteActividadService {
             id_solicitante: id_usuario_ponente
         }, transaction);
 
+        try {
+            const responsables = await NotificacionService.obtenerResponsablesEvento(asignacion.actividad.id_evento);
+            
+            for (const responsable of responsables) {
+                await EmailService.enviarSolicitudCambioPonente(
+                    responsable.correo,
+                    responsable.nombre,
+                    asignacion.ponente.usuario.nombre,
+                    asignacion.actividad.titulo,
+                    asignacion.actividad.evento.titulo,
+                    justificacion
+                );
+            }
+        } catch (emailError) {
+            console.error('Error enviando emails de solicitud de cambio (pero la solicitud fue creada):', emailError);
+        }
+
         return asignacion;
     }
 
@@ -160,6 +193,20 @@ class PonenteActividadService {
             comentarios,
             id_respondedor: id_usuario_admin
         }, transaction);
+
+        try {
+            const ponenteUsuario = asignacion.ponente.usuario;
+            await EmailService.enviarRespuestaSolicitudCambio(
+                ponenteUsuario.correo,
+                ponenteUsuario.nombre,
+                asignacion.actividad.titulo,
+                asignacion.actividad.evento.titulo,
+                aprobada,
+                comentarios
+            );
+        } catch (emailError) {
+            console.error('Error enviando email de respuesta de solicitud (pero la solicitud fue procesada):', emailError);
+        }
 
         return asignacion;
     }

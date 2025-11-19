@@ -4,6 +4,7 @@ const PermisosService = require('../services/permisos.service');
 const EmailService = require('../services/emailService');
 const AuditoriaService = require('../services/auditoriaService');
 const ApiResponse = require('../utils/response');
+const NotificacionService = require('../services/notificacion.service');
 const { MENSAJES, ESTADOS } = require('../constants/empresa.constants');
 
 class EmpresaController {
@@ -45,7 +46,7 @@ class EmpresaController {
 
   async create(req, res, next) {
     try {
-      const { rol, id: usuarioId } = req.usuario;
+      const { rol, id: usuarioId, nombre, correo } = req.usuario;
 
       const validacion = EmpresaValidator.validarCreacion(req.body, rol);
 
@@ -63,13 +64,20 @@ class EmpresaController {
       }, req.usuario);
 
       if (rol === 'asistente') {
-        await EmailService.enviarEmpresaRegistrada(
-          resultado.usuario.correo,
-          resultado.usuario.nombre,
-          resultado.empresa.nombre,
-          resultado.empresa.nit
-        );
-      }
+                const usuarioCreador = { id: usuarioId, nombre: nombre, correo: correo };
+
+                await EmailService.enviarEmpresaRegistrada(
+                    usuarioCreador.correo,
+                    usuarioCreador.nombre,
+                    resultado.empresa.nombre,
+                    resultado.empresa.nit
+                );
+
+                await NotificacionService.crearNotificacionEmpresaPendiente(
+                    resultado.empresa,
+                    usuarioCreador
+                );
+            }
 
       return ApiResponse.success(res, resultado.empresa, resultado.mensaje, 201);
     } catch (error) {
@@ -199,6 +207,12 @@ class EmpresaController {
             motivo || 'No se especificó motivo'
           );
         }
+          await NotificacionService.crearNotificacionRespuestaEmpresa(
+            resultado.creador,
+            resultado.empresa,
+            aprobar,
+            motivo
+          );
       }
 
       return ApiResponse.success(res, resultado.empresa, resultado.mensaje);

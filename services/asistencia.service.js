@@ -7,7 +7,13 @@ class AsistenciaService {
     }
 
     obtenerFechaHoy() {
-        return new Date().toISOString().split('T')[0];
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Bogota',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        return formatter.format(new Date());
     }
 
     async buscarInscripcionPorId(id, transaction) {

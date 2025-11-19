@@ -269,8 +269,7 @@ const EmailService = {
         nombreEvento,
         codigoConfirmacion
     ) => {
-        // En producción, esto debería ser la URL del frontend
-        // Por ahora, apuntará directamente a la API para la prueba
+        
         const urlConfirmacion = `${process.env.BASE_URL || 'http://localhost:3000'}/api/inscripciones/confirmar/${codigoConfirmacion}`;
 
         const mailOptions = {
@@ -302,7 +301,85 @@ const EmailService = {
             console.log('Correo de invitación de inscripción enviado a:', destinatario);
         } catch (error) {
             console.error('Error enviando correo de invitación de inscripción:', error);
-            throw error; // Lanzamos el error para que el controlador decida qué hacer
+            throw error; 
+        }
+    },
+
+    enviarSolicitudCambioPonente: async (
+        destinatario,
+        nombreDestinatario,
+        nombrePonente,
+        nombreActividad,
+        nombreEvento,
+        justificacion
+    ) => {
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: `Solicitud de Cambio: ${nombrePonente} en ${nombreActividad}`,
+            html: `
+                <h2>Hola ${nombreDestinatario},</h2>
+                <p>El ponente <strong>${nombrePonente}</strong> ha enviado una solicitud de cambio para la actividad:</p>
+                <p style="font-size: 1.1em; margin-left: 15px;">
+                    <strong>Actividad:</strong> ${nombreActividad}<br>
+                    <strong>Evento:</strong> ${nombreEvento}
+                </p>
+                <p><strong>Justificación del ponente:</strong></p>
+                <blockquote style="border-left: 4px solid #ccc; padding-left: 15px; margin-left: 15px; font-style: italic;">
+                    ${justificacion}
+                </blockquote>
+                <p>Por favor, ingresa a la plataforma para aprobar o rechazar esta solicitud.</p>
+            `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de solicitud de cambio (a admin) enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de solicitud de cambio:', error);
+        }
+    },
+
+    enviarRespuestaSolicitudCambio: async (
+        destinatario,
+        nombrePonente,
+        nombreActividad,
+        nombreEvento,
+        aprobada,
+        comentariosAdmin
+    ) => {
+        const esAprobada = aprobada === true || aprobada === 'true' || aprobada === 1;
+        
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: `Respuesta a tu Solicitud de Cambio - Actividad: ${nombreActividad}`,
+            html: `
+                <h2>Hola ${nombrePonente},</h2>
+                <p>Hemos procesado tu solicitud de cambio para la actividad <strong>"${nombreActividad}"</strong> (Evento: ${nombreEvento}).</p>
+                
+                ${esAprobada
+                    ? `<h3 style="color: #28a745;">Tu solicitud ha sido APROBADA.</h3>`
+                    : `<h3 style="color: #dc3545;">Tu solicitud ha sido RECHAZADA.</h3>`
+                }
+                
+                ${comentariosAdmin 
+                    ? `<p><strong>Comentarios del organizador:</strong></p>
+                       <blockquote style="border-left: 4px solid #ccc; padding-left: 15px; margin-left: 15px; font-style: italic;">
+                           ${comentariosAdmin}
+                       </blockquote>`
+                    : ''
+                }
+                
+                <p>Puedes revisar el estado de tus asignaciones en la plataforma.</p>
+            `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de respuesta a solicitud (a ponente) enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de respuesta a solicitud:', error);
         }
     },
 
@@ -337,7 +414,106 @@ const EmailService = {
         } catch (error) {
             console.error('Error enviando correo de creación de usuario:', error);
         }
+    },
+
+    enviarInvitacionPonente: async (
+        destinatario,
+        nombrePonente,
+        nombreOrganizador,
+        nombreActividad,
+        nombreEvento
+    ) => {
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: `¡Has sido invitado como Ponente al evento: ${nombreEvento}!`,
+            html: `
+                <h2>¡Hola ${nombrePonente}!</h2>
+                <p><strong>${nombreOrganizador}</strong> te ha invitado a participar como ponente en la siguiente actividad:</p>
+                <p style="font-size: 1.1em; margin-left: 15px;">
+                    <strong>Actividad:</strong> ${nombreActividad}<br>
+                    <strong>Evento:</strong> ${nombreEvento}
+                </p>
+                <p>Tu invitación está <strong>pendiente de respuesta</strong>.</p>
+                <p>Por favor, ingresa a la plataforma para aceptar o rechazar esta invitación.</p>
+            `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de invitación a ponente enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de invitación a ponente:', error);
+        }
+    },
+
+    enviarNotificacionPonenteRemovido: async (
+        destinatario,
+        nombrePonente,
+        nombreActividad,
+        nombreEvento,
+        nombreOrganizador
+    ) => {
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: `Notificación: Has sido removido de la actividad "${nombreActividad}"`,
+            html: `
+                <h2>Hola ${nombrePonente},</h2>
+                <p>Te informamos que <strong>${nombreOrganizador}</strong> te ha removido de tu asignación como ponente en la siguiente actividad:</p>
+                
+                <p style="font-size: 1.1em; margin-left: 15px;">
+                    <strong>Actividad:</strong> ${nombreActividad}<br>
+                    <strong>Evento:</strong> ${nombreEvento}
+                </p>
+                
+                <p>Ya no se espera tu participación en esta actividad.</p>
+                <p>Si crees que esto es un error, por favor, ponte en contacto con el organizador.</p>
+            `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de ponente removido enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de ponente removido:', error);
+        }
+    },
+
+    enviarNotificacionRespuestaPonente: async (
+        destinatario,
+        nombreDestinatario,
+        nombrePonente,
+        nombreActividad,
+        aceptada
+    ) => {
+        const esAceptada = aceptada === "aceptado";    
+        const estadoTexto = esAceptada ? 'ACEPTADO' : 'RECHAZADO';
+        const colorEstado = esAceptada ? '#28a745' : '#dc3545';
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: destinatario,
+            subject: `Respuesta de Ponente: ${nombrePonente} ha ${estadoTexto} la invitación`,
+            html: `
+                <h2>Hola ${nombreDestinatario},</h2>
+                <p>El ponente <strong>${nombrePonente}</strong> ha respondido a la invitación para la actividad <strong>"${nombreActividad}"</strong>.</p>
+                
+                <h3 style="color: ${colorEstado};">Estado: ${estadoTexto}</h3>
+                
+                <p>Puedes revisar el estado de todos los ponentes de la actividad en la plataforma.</p>
+            `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log('Correo de respuesta de ponente (a admin) enviado a:', destinatario);
+        } catch (error) {
+            console.error('Error enviando correo de respuesta de ponente:', error);
+        }
     }
+
 
 };
 

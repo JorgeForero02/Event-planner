@@ -1,13 +1,20 @@
-const { Evento, Empresa, Usuario, Actividad, Inscripcion, Lugar, Asistente , AdministradorEmpresa} = require('../models');
+const { Evento, Empresa, Usuario, Actividad, Inscripcion, Lugar, Asistente ,Ponente, PonenteActividad, AdministradorEmpresa} = require('../models');
 const { ESTADOS, MODALIDADES } = require('../constants/evento.constants');
+const { Op } = require('sequelize');
 
 class EventoService {
     crearTransaccion() {
         return Evento.sequelize.transaction();
     }
 
-    _obtenerFechaHoy() {
-        return new Date().toISOString().split('T')[0];
+     _obtenerFechaHoy() {
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Bogota',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        return formatter.format(new Date());
     }
 
     async _actualizarEstadoFinalizado(evento) {
@@ -151,11 +158,12 @@ class EventoService {
 
     async obtenerNotificacionesCancelacion(evento) {
         const { id, id_creador } = evento;
+        const notificadosMap = new Map();
 
         const inscripciones = await Inscripcion.findAll({
             where: {
                 id_evento: id,
-                estado: { [require('sequelize').Op.in]: ['Confirmada', 'Pendiente'] }
+                estado: { [Op.in]: ['Confirmada', 'Pendiente'] }
             },
             include: [{
                 model: Asistente,
@@ -164,29 +172,59 @@ class EventoService {
                 include: [{
                     model: Usuario,
                     as: 'usuario',
-                    attributes: ['nombre', 'correo'],
+                    attributes: ['id', 'nombre', 'correo'],
                     required: true
                 }]
             }]
         });
     
-        const asistentesMap = new Map();
         inscripciones.forEach(i => {
             const usuario = i.asistente.usuario.toJSON();
-            asistentesMap.set(usuario.correo, usuario);
+            notificadosMap.set(usuario.correo, usuario);
+        });
+
+        const ponentesAsignados = await PonenteActividad.findAll({
+            where: {
+                estado: 'aceptado'
+            },
+            include: [
+                {
+                    model: Actividad,
+                    as: 'actividad',
+                    where: { id_evento: id }, 
+                    required: true,
+                    attributes: [] 
+                },
+                {
+                    model: Ponente,
+                    as: 'ponente',
+                    required: true,
+                    include: [{
+                        model: Usuario,
+                        as: 'usuario',
+                        attributes: ['id','nombre', 'correo'],
+                        required: true
+                    }]
+                }
+            ]
+        });
+
+        ponentesAsignados.forEach(pa => {
+            const usuario = pa.ponente.usuario.toJSON();
+            notificadosMap.set(usuario.correo, usuario);
         });
 
         const creador = await Usuario.findByPk(id_creador, {
-            attributes: ['nombre', 'correo']
+            attributes: ['id','nombre', 'correo']
         });
         const creadorJson = creador ? creador.toJSON() : null;
 
         if (creadorJson) {
-            asistentesMap.delete(creadorJson.correo);
+            notificadosMap.delete(creadorJson.correo);
         }
         
         return {
-            asistentes: Array.from(asistentesMap.values()),
+            participantes: Array.from(notificadosMap.values()), 
             creador: creadorJson
         };
     }

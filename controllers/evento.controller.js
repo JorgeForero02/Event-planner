@@ -3,6 +3,7 @@ const EventoValidator = require('../validators/evento.validator');
 const PermisosService = require('../services/permisos.service');
 const AuditoriaService = require('../services/auditoriaService');
 const EmailService = require('../services/emailService');
+const NotificacionService = require('../services/notificacion.service');
 const { MENSAJES, ESTADOS } = require('../constants/evento.constants');
 
 class EventoController {
@@ -195,11 +196,11 @@ class EventoController {
             await transaction.commit();
 
             try {
-                const { asistentes, creador } = await EventoService.obtenerNotificacionesCancelacion(eventoActualizado);
+                const { participantes, creador } = await EventoService.obtenerNotificacionesCancelacion(eventoActualizado);
                 
                 const correoDelCreador = creador ? creador.correo : null;
 
-                for (const usuario of asistentes) {
+                for (const usuario of participantes) {
                     await EmailService.enviarNotificacionCancelacion(
                         usuario.correo,
                         usuario.nombre,
@@ -216,8 +217,14 @@ class EventoController {
                     );
                 }
 
-            } catch (emailError) {
-                console.error('Error al enviar notificaciones de cancelación (evento ya cancelado):', emailError);
+                await NotificacionService.crearNotificacionEventoCancelado(
+                    eventoActualizado,
+                    participantes,
+                    creador
+                );
+
+            } catch (notificationError) { 
+                console.error('Error al enviar notificaciones de cancelación (evento ya cancelado):', notificationError);
             }
             return res.json({
                 success: true,

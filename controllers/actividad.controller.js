@@ -150,11 +150,11 @@ class ActividadController {
                 transaction
             );
 
-            await AuditoriaService.log({
-                message: `Se actualizó la actividad: ${actividad.titulo}`,
-                type: 'PUT',
-                action: 'actualizar_actividad',
-                user: { id: usuario.id, nombre: usuario.nombre }
+            await AuditoriaService.registrar({
+                mensaje: `Se actualizó la actividad: ${actividad.titulo}`,
+                tipo: 'PUT',
+                accion: 'actualizar_actividad',
+                usuario: { id: usuario.id, nombre: usuario.nombre }
             });
 
             await transaction.commit();
@@ -196,11 +196,11 @@ class ActividadController {
 
             await ActividadService.eliminar(actividadId, transaction);
 
-            await AuditoriaService.log({
-                message: `Se eliminó la actividad: ${actividad.titulo}`,
-                type: 'DELETE',
-                action: 'eliminar_actividad',
-                user: { id: usuario.id, nombre: usuario.nombre }
+            await AuditoriaService.registrar({
+                mensaje: `Se eliminó la actividad: ${actividad.titulo}`,
+                tipo: 'DELETE',
+                accion: 'eliminar_actividad',
+                usuario: { id: usuario.id, nombre: usuario.nombre }
             });
 
             await transaction.commit();
