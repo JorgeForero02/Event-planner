@@ -43,7 +43,7 @@ class PonenteActividadService {
                     include: [{
                         model: Usuario,
                         as: 'usuario',
-                        attributes: ['id', 'nombre', 'apellido', 'email']
+                        attributes: ['id', 'nombre', 'correo']
                     }]
                 }
             ],
@@ -100,7 +100,7 @@ class PonenteActividadService {
                     include: [{
                         model: Usuario,
                         as: 'usuario',
-                        attributes: ['id', 'nombre', 'apellido', 'email']
+                        attributes: ['id', 'nombre', 'correo']
                     }]
                 },
                 {

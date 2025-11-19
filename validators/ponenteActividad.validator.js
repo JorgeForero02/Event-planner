@@ -1,4 +1,4 @@
-const { Ponente, Actividad, PonenteActividad, Evento } = require('../models');
+const { Ponente, Actividad, PonenteActividad, Evento, Usuario } = require('../models');
 const { MENSAJES_VALIDACION } = require('../constants/ponenteActividad.constants');
 
 class PonenteActividadValidator {
@@ -19,9 +19,9 @@ class PonenteActividadValidator {
 
         const ponente = await Ponente.findByPk(id_ponente, {
             include: [{
-                model: require('./Usuario'),
+                model: Usuario,
                 as: 'usuario',
-                attributes: ['id', 'nombre', 'apellido']
+                attributes: ['id', 'nombre', 'correo']
             }]
         });
 
