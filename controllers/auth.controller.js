@@ -220,7 +220,7 @@ class AuthController {
                 });
             }
 
-            EmailService.enviarBienvenidaOrganizador(correo, nombre, resultado.datos.empresa.nombre, contraseña).catch(errorEmail => {
+            EmailService.enviarCreacionOrganizador(correo, nombre, resultado.datos.empresa.nombre, contraseña).catch(errorEmail => {
                 console.error('Error al enviar email de bienvenida al organizador:', errorEmail);
             });
 
