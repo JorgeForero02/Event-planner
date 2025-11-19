@@ -429,15 +429,6 @@ class NotificacionService {
         }
     }
 
-    /**
- * Crear notificación cuando se cancela una actividad específica
- * @param {Object} params - Parámetros de la cancelación
- * @param {Object} params.actividad - Datos de la actividad cancelada
- * @param {Object} params.evento - Datos del evento al que pertenece
- * @param {Array} params.ponentes - Lista de ponentes asignados
- * @param {Object} transaction - Transacción de base de datos
- * @returns {Promise<Array>} Array de notificaciones creadas
- */
     async crearNotificacionCancelacionActividad({ actividad, evento, ponentes }, transaction) {
         try {
             const tipoNotificacion = await TipoNotificacion.findOne({
@@ -501,17 +492,6 @@ class NotificacionService {
             return [];
         }
     }
-
-    /**
-     * Crear notificación cuando se actualiza información de un evento
-     * @param {Object} params - Parámetros de la actualización
-     * @param {Object} params.evento - Datos del evento actualizado
-     * @param {Object} params.cambios - Objeto con los campos modificados
-     * @param {Array} params.participantes - Lista de usuarios inscritos
-     * @param {Array} params.ponentes - Lista de ponentes del evento
-     * @param {Object} transaction - Transacción de base de datos
-     * @returns {Promise<Array>} Array de notificaciones creadas
-     */
     async crearNotificacionActualizacionEvento({ evento, cambios, participantes, ponentes }, transaction) {
         try {
             const tipoNotificacion = await TipoNotificacion.findOne({
