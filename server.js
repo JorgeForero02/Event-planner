@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 require('dotenv').config();
 const setupSwagger = require('./config/swagger');
+const { programarRecordatorios } = require('./cron/recordatorios.cron');
 
 const db = require('./models');
 const routes = require('./routes');
@@ -23,6 +24,8 @@ app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+programarRecordatorios();
 
 app.get('/', (req, res) => {
   res.json({ 

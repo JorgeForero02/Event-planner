@@ -1,7 +1,7 @@
 const {
     Notificacion, TipoNotificacion, Usuario, Evento, Administrador, AdministradorEmpresa } = require('../models');
 const { MENSAJES, TIPOS_ENTIDAD, ESTADOS_NOTIFICACION } = require('../constants/notificacion.constants');
-const { Op } = require('sequelize'); 
+const { Op } = require('sequelize');
 
 class NotificacionService {
     crearTransaccion() {
@@ -19,10 +19,10 @@ class NotificacionService {
             const idsAdmins = adminsData.map(a => a.id_usuario);
 
             if (idsAdmins.length === 0) return [];
-            
+
             return await Usuario.findAll({
                 where: { id: { [Op.in]: idsAdmins } },
-                attributes: ['id', 'nombre', 'correo'], 
+                attributes: ['id', 'nombre', 'correo'],
             });
         } catch (error) {
             console.error("Error al obtener administradores del sistema:", error);
@@ -65,7 +65,7 @@ class NotificacionService {
             if (idsAdmins.length > 0) {
                 const admins = await Usuario.findAll({
                     where: { id: { [Op.in]: idsAdmins } },
-                    attributes: ['id', 'nombre', 'correo'], 
+                    attributes: ['id', 'nombre', 'correo'],
                 });
                 return admins;
             }
@@ -81,7 +81,7 @@ class NotificacionService {
         });
 
         const notificaciones = [];
-        const nombreEvento = evento.titulo; 
+        const nombreEvento = evento.titulo;
         const nombrePonente = ponente.usuario?.nombre || 'un ponente';
 
         const notificacionPonente = await this.crear({
@@ -288,7 +288,7 @@ class NotificacionService {
     async crearNotificacionEmpresaPendiente(empresa, creador, transaction = null) {
         try {
             const tipoNotificacion = await TipoNotificacion.findOne({
-                where: { nombre: 'solicitud_empresa' } 
+                where: { nombre: 'solicitud_empresa' }
             });
 
             const administradores = await this._obtenerAdministradoresSistema();
@@ -319,7 +319,7 @@ class NotificacionService {
             console.error("Error al crear notificación de empresa pendiente:", error);
         }
     }
- 
+
     async crearNotificacionRespuestaEmpresa(creador, empresa, aprobada, motivo, transaction = null) {
         try {
             const tipoNombre = aprobada ? 'empresa_aprobada' : 'empresa_rechazada';
@@ -330,7 +330,7 @@ class NotificacionService {
             const titulo = aprobada
                 ? '¡Tu empresa ha sido aprobada!'
                 : 'Tu solicitud de empresa ha sido rechazada';
-            
+
             const contenido = aprobada
                 ? `¡Felicidades! La empresa "${empresa.nombre}" que registraste ha sido aprobada por un administrador.`
                 : `Lo sentimos, la solicitud para la empresa "${empresa.nombre}" ha sido rechazada. Motivo: ${motivo || 'No especificado'}.`;
@@ -366,7 +366,7 @@ class NotificacionService {
             const contenido = `Has sido promovido al rol de Gerente en la empresa "${empresa.nombre}". Ahora tienes nuevos permisos administrativos.`;
 
             await this.crear({
-                id_TipoNotificacion: tipoNotificacion?.id || 1, 
+                id_TipoNotificacion: tipoNotificacion?.id || 1,
                 titulo,
                 contenido,
                 entidad_tipo: TIPOS_ENTIDAD.USUARIO,
@@ -388,9 +388,9 @@ class NotificacionService {
     async crearNotificacionEventoCancelado(evento, participantes, creador, transaction = null) {
         try {
             const tipoNotificacion = await TipoNotificacion.findOne({
-                where: { nombre: 'evento_cancelado' } 
+                where: { nombre: 'evento_cancelado' }
             });
-            const tipoId = tipoNotificacion?.id || 1; 
+            const tipoId = tipoNotificacion?.id || 1;
             const tituloParticipante = `Evento Cancelado: ${evento.titulo}`;
             const contenidoParticipante = `Lamentamos informarte que el evento "${evento.titulo}", en el que estabas inscrito, ha sido cancelado.`;
 
@@ -428,6 +428,234 @@ class NotificacionService {
             console.error("Error al crear notificaciones de cancelación de evento:", error);
         }
     }
+
+    /**
+ * Crear notificación cuando se cancela una actividad específica
+ * @param {Object} params - Parámetros de la cancelación
+ * @param {Object} params.actividad - Datos de la actividad cancelada
+ * @param {Object} params.evento - Datos del evento al que pertenece
+ * @param {Array} params.ponentes - Lista de ponentes asignados
+ * @param {Object} transaction - Transacción de base de datos
+ * @returns {Promise<Array>} Array de notificaciones creadas
+ */
+    async crearNotificacionCancelacionActividad({ actividad, evento, ponentes }, transaction) {
+        try {
+            const tipoNotificacion = await TipoNotificacion.findOne({
+                where: { nombre: 'cancelacion_actividad' }
+            });
+
+            const notificaciones = [];
+            const tipoId = tipoNotificacion?.id || 6;
+            const nombreEvento = evento.titulo;
+            const nombreActividad = actividad.titulo;
+
+            // Notificar a cada ponente asignado
+            for (const ponente of ponentes) {
+                const notif = await this.crear({
+                    id_TipoNotificacion: tipoId,
+                    titulo: `Actividad Cancelada: ${nombreActividad}`,
+                    contenido: `Lamentamos informarte que la actividad "${nombreActividad}" del evento "${nombreEvento}" ha sido cancelada.`,
+                    entidad_tipo: TIPOS_ENTIDAD.ACTIVIDAD,
+                    entidad_id: actividad.id_actividad,
+                    id_destinatario: ponente.id_usuario,
+                    id_evento: evento.id,
+                    datos_adicionales: {
+                        id_actividad: actividad.id_actividad,
+                        nombre_actividad: nombreActividad,
+                        id_evento: evento.id,
+                        nombre_evento: nombreEvento,
+                        fecha_actividad: actividad.fecha_actividad
+                    },
+                    estado: ESTADOS_NOTIFICACION.PENDIENTE,
+                    prioridad: 'alta'
+                }, transaction);
+                notificaciones.push(notif);
+            }
+
+            // Notificar a responsables del evento
+            const responsables = await this.obtenerResponsablesEvento(evento.id);
+            for (const responsable of responsables) {
+                const notif = await this.crear({
+                    id_TipoNotificacion: tipoId,
+                    titulo: `Confirmación: Actividad "${nombreActividad}" cancelada`,
+                    contenido: `Has cancelado la actividad "${nombreActividad}" del evento "${nombreEvento}". Se ha notificado a los ponentes asignados.`,
+                    entidad_tipo: TIPOS_ENTIDAD.ACTIVIDAD,
+                    entidad_id: actividad.id_actividad,
+                    id_destinatario: responsable.id,
+                    id_evento: evento.id,
+                    datos_adicionales: {
+                        id_actividad: actividad.id_actividad,
+                        nombre_actividad: nombreActividad,
+                        id_evento: evento.id,
+                        nombre_evento: nombreEvento
+                    },
+                    estado: ESTADOS_NOTIFICACION.PENDIENTE,
+                    prioridad: 'media'
+                }, transaction);
+                notificaciones.push(notif);
+            }
+
+            return notificaciones;
+        } catch (error) {
+            console.error("Error al crear notificaciones de cancelación de actividad:", error);
+            return [];
+        }
+    }
+
+    /**
+     * Crear notificación cuando se actualiza información de un evento
+     * @param {Object} params - Parámetros de la actualización
+     * @param {Object} params.evento - Datos del evento actualizado
+     * @param {Object} params.cambios - Objeto con los campos modificados
+     * @param {Array} params.participantes - Lista de usuarios inscritos
+     * @param {Array} params.ponentes - Lista de ponentes del evento
+     * @param {Object} transaction - Transacción de base de datos
+     * @returns {Promise<Array>} Array de notificaciones creadas
+     */
+    async crearNotificacionActualizacionEvento({ evento, cambios, participantes, ponentes }, transaction) {
+        try {
+            const tipoNotificacion = await TipoNotificacion.findOne({
+                where: { nombre: 'actualizacion_evento' }
+            });
+
+            const notificaciones = [];
+            const tipoId = tipoNotificacion?.id || 7;
+            const nombreEvento = evento.titulo;
+
+            const camposModificados = Object.keys(cambios);
+            const descripcionCambios = camposModificados.length > 0
+                ? `Campos actualizados: ${camposModificados.join(', ')}`
+                : 'Se han realizado actualizaciones en el evento';
+
+            for (const usuario of participantes) {
+                const notif = await this.crear({
+                    id_TipoNotificacion: tipoId,
+                    titulo: `Actualización en Evento: ${nombreEvento}`,
+                    contenido: `El evento "${nombreEvento}" en el que estás inscrito ha sido actualizado. ${descripcionCambios}.`,
+                    entidad_tipo: TIPOS_ENTIDAD.EVENTO,
+                    entidad_id: evento.id,
+                    id_destinatario: usuario.id,
+                    id_evento: evento.id,
+                    datos_adicionales: {
+                        id_evento: evento.id,
+                        nombre_evento: nombreEvento,
+                        cambios_realizados: cambios
+                    },
+                    estado: ESTADOS_NOTIFICACION.PENDIENTE,
+                    prioridad: 'media'
+                }, transaction);
+                notificaciones.push(notif);
+            }
+
+            for (const ponente of ponentes) {
+                const notif = await this.crear({
+                    id_TipoNotificacion: tipoId,
+                    titulo: `Actualización en Evento: ${nombreEvento}`,
+                    contenido: `El evento "${nombreEvento}" donde tienes actividades asignadas ha sido actualizado. ${descripcionCambios}.`,
+                    entidad_tipo: TIPOS_ENTIDAD.EVENTO,
+                    entidad_id: evento.id,
+                    id_destinatario: ponente.id_usuario,
+                    id_evento: evento.id,
+                    datos_adicionales: {
+                        id_evento: evento.id,
+                        nombre_evento: nombreEvento,
+                        cambios_realizados: cambios
+                    },
+                    estado: ESTADOS_NOTIFICACION.PENDIENTE,
+                    prioridad: 'media'
+                }, transaction);
+                notificaciones.push(notif);
+            }
+
+            return notificaciones;
+        } catch (error) {
+            console.error("Error al crear notificaciones de actualización de evento:", error);
+            return [];
+        }
+    }
+
+    async crearNotificacionRecordatorioActividad({ actividad, evento, ponente }, transaction) {
+        try {
+            const tipoNotificacion = await TipoNotificacion.findOne({
+                where: { nombre: 'recordatorio_actividad' }
+            });
+
+            const tipoId = tipoNotificacion?.id || 8;
+            const nombreEvento = evento.titulo;
+            const nombreActividad = actividad.titulo;
+            const fechaActividad = new Date(actividad.fecha_actividad).toLocaleDateString('es-CO', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+
+            const notificacion = await this.crear({
+                id_TipoNotificacion: tipoId,
+                titulo: `Recordatorio: Actividad "${nombreActividad}" próxima`,
+                contenido: `Te recordamos que tienes la actividad "${nombreActividad}" del evento "${nombreEvento}" el ${fechaActividad} a las ${actividad.hora_inicio}. ¡Prepárate!`,
+                entidad_tipo: TIPOS_ENTIDAD.ACTIVIDAD,
+                entidad_id: actividad.id_actividad,
+                id_destinatario: ponente.id_usuario,
+                id_evento: evento.id,
+                datos_adicionales: {
+                    id_actividad: actividad.id_actividad,
+                    nombre_actividad: nombreActividad,
+                    id_evento: evento.id,
+                    nombre_evento: nombreEvento,
+                    fecha_actividad: actividad.fecha_actividad,
+                    hora_inicio: actividad.hora_inicio,
+                    hora_fin: actividad.hora_fin
+                },
+                estado: ESTADOS_NOTIFICACION.PENDIENTE,
+                prioridad: 'alta'
+            }, transaction);
+
+            return notificacion;
+        } catch (error) {
+            console.error("Error al crear notificación de recordatorio de actividad:", error);
+            return null;
+        }
+    }
+
+    async crearNotificacionReconocimientoPonente({ ponente, actividad, evento }, transaction) {
+        try {
+            const tipoNotificacion = await TipoNotificacion.findOne({
+                where: { nombre: 'reconocimiento_ponente' }
+            });
+
+            const tipoId = tipoNotificacion?.id || 9;
+            const nombreEvento = evento.titulo;
+            const nombreActividad = actividad.titulo;
+            const nombrePonente = ponente.usuario?.nombre || 'Estimado ponente';
+
+            const notificacion = await this.crear({
+                id_TipoNotificacion: tipoId,
+                titulo: '¡Gracias por tu participación!',
+                contenido: `${nombrePonente}, agradecemos tu participación como ponente en la actividad "${nombreActividad}" del evento "${nombreEvento}". Tu contribución fue valiosa para el éxito del evento.`,
+                entidad_tipo: TIPOS_ENTIDAD.PONENTE_ACTIVIDAD,
+                entidad_id: ponente.id_ponente,
+                id_destinatario: ponente.id_usuario,
+                id_evento: evento.id,
+                datos_adicionales: {
+                    id_ponente: ponente.id_ponente,
+                    id_actividad: actividad.id_actividad,
+                    nombre_actividad: nombreActividad,
+                    id_evento: evento.id,
+                    nombre_evento: nombreEvento,
+                    fecha_actividad: actividad.fecha_actividad
+                },
+                estado: ESTADOS_NOTIFICACION.PENDIENTE,
+                prioridad: 'baja'
+            }, transaction);
+
+            return notificacion;
+        } catch (error) {
+            console.error("Error al crear notificación de reconocimiento de ponente:", error);
+            return null;
+        }
+    }
+
 
     async marcarComoLeida(notificacionId, usuarioId, transaction = null) {
         const notificacion = await Notificacion.findByPk(notificacionId, { transaction });

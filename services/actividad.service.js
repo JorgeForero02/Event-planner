@@ -1,6 +1,8 @@
-const { Actividad, Evento, Lugar, LugarActividad, PonenteActividad } = require('../models');
+const { Actividad, Evento, Lugar, LugarActividad, PonenteActividad, Ponente, Usuario } = require('../models');
+const notificacionService = require('./notificacion.service');
 
 class ActividadService {
+
     crearTransaccion() {
         return Actividad.sequelize.transaction();
     }
@@ -30,7 +32,6 @@ class ActividadService {
 
     async crear(eventoId, datosActividad, evento, transaction) {
         const { titulo, hora_inicio, hora_fin, descripcion, fecha_actividad, url, lugares } = datosActividad;
-
         const actividad = await Actividad.create({
             id_evento: eventoId,
             titulo,
@@ -50,7 +51,6 @@ class ActividadService {
 
     async actualizar(actividadId, datosActualizacion, evento, transaction) {
         const { lugares, ...camposActividad } = datosActualizacion;
-
         const actividad = await this.buscarPorId(actividadId);
 
         if (lugares !== undefined && Array.isArray(lugares)) {
@@ -59,11 +59,42 @@ class ActividadService {
 
         const actualizaciones = this._construirObjetoActualizacion(camposActividad);
         await actividad.update(actualizaciones, { transaction });
-
         return actividad;
     }
 
     async eliminar(actividadId, transaction) {
+        const actividad = await this.buscarPorId(actividadId, {
+            include: [
+                {
+                    model: Evento,
+                    as: 'evento',
+                    attributes: ['id', 'titulo']
+                }
+            ]
+        });
+
+        const ponentesActividad = await PonenteActividad.findAll({
+            where: { id_actividad: actividadId },
+            include: [
+                {
+                    model: Ponente,
+                    as: 'ponente',
+                    include: [
+                        {
+                            model: Usuario,
+                            as: 'usuario',
+                            attributes: ['id', 'nombre', 'correo']
+                        }
+                    ]
+                }
+            ]
+        });
+
+        const ponentes = ponentesActividad.map(pa => ({
+            ...pa.ponente.toJSON(),
+            id_usuario: pa.ponente.usuario.id
+        }));
+
         await LugarActividad.destroy({
             where: { id_actividad: actividadId },
             transaction
@@ -74,8 +105,19 @@ class ActividadService {
             transaction
         });
 
-        const actividad = await this.buscarPorId(actividadId);
         await actividad.destroy({ transaction });
+
+        if (actividad.evento && ponentes.length > 0) {
+            try {
+                await notificacionService.crearNotificacionCancelacionActividad({
+                    actividad: actividad.toJSON(),
+                    evento: actividad.evento.toJSON(),
+                    ponentes
+                }, transaction);
+            } catch (error) {
+                console.error('Error al crear notificaciones de cancelación:', error);
+            }
+        }
     }
 
     async validarLugares(idsLugares, idEmpresa) {
@@ -95,7 +137,6 @@ class ActividadService {
             id_lugar,
             id_actividad: actividadId
         }));
-
         await LugarActividad.bulkCreate(lugaresActividad, { transaction });
     }
 
@@ -113,13 +154,11 @@ class ActividadService {
     _construirObjetoActualizacion(campos) {
         const actualizaciones = {};
         const camposPermitidos = ['titulo', 'hora_inicio', 'hora_fin', 'descripcion', 'fecha_actividad', 'url'];
-
         camposPermitidos.forEach(campo => {
             if (campos[campo] !== undefined) {
                 actualizaciones[campo] = campos[campo];
             }
         });
-
         return actualizaciones;
     }
 }
