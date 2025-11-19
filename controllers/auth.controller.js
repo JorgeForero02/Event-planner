@@ -220,6 +220,15 @@ class AuthController {
                 });
             }
 
+            EmailService.enviarBienvenidaOrganizador(correo, nombre, resultado.datos.empresa.nombre).catch(errorEmail => {
+                console.error('Error al enviar email de bienvenida al organizador:', errorEmail);
+            });
+
+            await NotificacionService.crearNotificacionBienvenidaOrganizador(
+                resultado.datos.usuario,
+                resultado.datos.empresa
+            );
+
             return res.status(CODIGOS_HTTP.CREADO).json({
                 success: true,
                 message: resultado.mensaje,

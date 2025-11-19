@@ -75,6 +75,30 @@ class NotificacionService {
         return responsablesUnicos;
     }
 
+    async crearNotificacionBienvenidaOrganizador(usuario, empresa, transaction = null) {
+        try {
+            const tipoNotificacion = await TipoNotificacion.findOne({
+                where: { nombre: 'bienvenida_organizador' }
+            });
+            await this.crear({
+                id_TipoNotificacion: tipoNotificacion?.id || 1,
+                titulo: '¡Bienvenido como Organizador!',
+                contenido: `Hola ${usuario.nombre}, bienvenido a nuestra plataforma como organizador de eventos para la empresa "${empresa.nombre}". Estamos emocionados de tenerte con nosotros.`,
+                entidad_tipo: TIPOS_ENTIDAD.USUARIO,
+                entidad_id: usuario.id,
+                id_destinatario: usuario.id,
+                datos_adicionales: {
+                    id_empresa: empresa.id,
+                    nombre_empresa: empresa.nombre
+                },
+                estado: ESTADOS_NOTIFICACION.PENDIENTE,
+                prioridad: 'alta'
+            }, transaction);
+        } catch (error) {
+            console.error("Error al crear notificación de bienvenida para organizador:", error);
+        }
+    }
+
     async crearNotificacionAsignacionPonente({ ponente, actividad, evento }, transaction) {
         const tipoNotificacion = await TipoNotificacion.findOne({
             where: { nombre: 'asignacion_ponente' }
