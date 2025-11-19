@@ -150,34 +150,68 @@ class AuthController {
                 });
             }
 
-            const resultado = await AuthService.promoverAGerente(id_usuario, id_empresa, req.usuario);
-
-            if (!resultado.exito) {
-                return res.status(resultado.codigoEstado).json({
+            // Validar tipos básicos
+            const idUsuarioNum = Number(id_usuario);
+            const idEmpresaNum = Number(id_empresa);
+            if (Number.isNaN(idUsuarioNum) || Number.isNaN(idEmpresaNum)) {
+                return res.status(CODIGOS_HTTP.BAD_REQUEST).json({
                     success: false,
-                    message: resultado.mensaje
+                    message: 'IDs inválidos'
                 });
             }
 
-            try {
-                const { usuario, empresa } = resultado.datos;
-
-                await EmailService.enviarPromocionGerente(
-                    usuario.correo,
-                    usuario.nombre,
-                    empresa.nombre
-                );
-
-                await NotificacionService.crearNotificacionPromocionGerente(
-                    usuario,
-                    empresa
-                );
-
-            } catch (errorNotificacion) {
-                console.error('Error al enviar notificaciones de promoción a gerente:', errorNotificacion);
+            if (!req.usuario || !req.usuario.id) {
+                return res.status(CODIGOS_HTTP.NO_AUTORIZADO).json({
+                    success: false,
+                    message: 'Usuario no autenticado'
+                });
             }
 
-            return res.json({
+            // Llamada al servicio: esperar resultado y registrar log detallado
+            const resultado = await AuthService.promoverAGerente(idUsuarioNum, idEmpresaNum, req.usuario);
+            console.debug('promoverAGerente - resultado:', resultado);
+
+            if (!resultado || !resultado.exito) {
+                return res.status(resultado?.codigoEstado || CODIGOS_HTTP.BAD_REQUEST).json({
+                    success: false,
+                    message: resultado?.mensaje || 'No se pudo promover al gerente'
+                });
+            }
+
+            // Validar datos devueltos
+            const { usuario, empresa } = resultado.datos || {};
+            if (!usuario || !empresa) {
+                console.warn('promoverAGerente: promoción exitosa pero faltan datos en resultado.datos', resultado);
+            } else {
+                // Intentar enviar email y notificación; no bloquear la respuesta principal si fallan,
+                // pero sí registrar errores para diagnóstico.
+                try {
+                    await EmailService.enviarPromocionGerente(usuario.correo, usuario.nombre, empresa.nombre);
+                } catch (errorEmail) {
+                    console.error('Error al enviar email de promoción a gerente:', errorEmail);
+                }
+
+                try {
+                    await NotificacionService.crearNotificacionPromocionGerente(usuario, empresa);
+                } catch (errorNotificacion) {
+                    console.error('Error al crear notificación de promoción a gerente:', errorNotificacion);
+                }
+
+                // Auditoría (si el servicio expone método de actualización)
+                try {
+                    if (AuditoriaService.registrarActualizacion) {
+                        await AuditoriaService.registrarActualizacion('usuario', {
+                            id: usuario.id,
+                            cambios: { rol: 'gerente', empresa: empresa.id },
+                            actor: req.usuario.id
+                        });
+                    }
+                } catch (errorAuditoria) {
+                    console.error('Error al registrar auditoría de promoción:', errorAuditoria);
+                }
+            }
+
+            return res.status(CODIGOS_HTTP.OK).json({
                 success: true,
                 message: resultado.mensaje,
                 data: resultado.datos
@@ -191,7 +225,7 @@ class AuthController {
             });
         }
     }
-
+    
     async crearOrganizador(req, res) {
         try {
             const { nombre, cedula, telefono, correo, contraseña, id_empresa } = req.body;

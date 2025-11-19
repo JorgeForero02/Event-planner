@@ -104,12 +104,11 @@ class AuthService {
             };
         }
 
-        await AdministradorEmpresa.create({
-            id_usuario: idUsuario,
-            id_empresa: idEmpresa,
-            id_cargo: ROL_GERENTE,
-            estado: ESTADO_ACTIVO
-        });
+            await AdministradorEmpresa.create({
+                id_usuario: idUsuario,
+                id_empresa: idEmpresa,
+                es_Gerente: 1
+            });
 
         return {
             exito: true,
@@ -169,12 +168,11 @@ class AuthService {
             contraseña: hashedPassword
         });
 
-        await AdministradorEmpresa.create({
-            id_usuario: nuevoUsuario.id,
-            id_empresa,
-            id_cargo: ROL_ORGANIZADOR,
-            estado: ESTADO_ACTIVO
-        });
+            await AdministradorEmpresa.create({
+                id_usuario: nuevoUsuario.id,
+                id_empresa,
+                es_Gerente: 0
+            });
 
         return {
             exito: true,
@@ -253,21 +251,19 @@ class AuthService {
                 break;
 
             case 'gerente':
-                await AdministradorEmpresa.create({
-                    id_usuario: nuevoUsuario.id,
-                    id_empresa,
-                    id_cargo: ROL_GERENTE,
-                    estado: ESTADO_ACTIVO
-                });
+                    await AdministradorEmpresa.create({
+                        id_usuario: nuevoUsuario.id,
+                        id_empresa,
+                        es_Gerente: 1
+                    });
                 break;
 
             case 'organizador':
-                await AdministradorEmpresa.create({
-                    id_usuario: nuevoUsuario.id,
-                    id_empresa,
-                    id_cargo: ROL_ORGANIZADOR,
-                    estado: ESTADO_ACTIVO
-                });
+                    await AdministradorEmpresa.create({
+                        id_usuario: nuevoUsuario.id,
+                        id_empresa,
+                        es_Gerente: 0
+                    });
                 break;
         }
 
