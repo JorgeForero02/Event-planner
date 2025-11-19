@@ -37,7 +37,7 @@ class PonenteActividadValidator {
             include: [{
                 model: Evento,
                 as: 'evento',
-                attributes: ['id', 'nombre', 'id_empresa']
+                attributes: ['id', 'titulo', 'id_empresa']
             }]
         });
 
