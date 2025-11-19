@@ -177,9 +177,8 @@ class EventoController {
 
     async eliminarEvento(req, res) {
         const transaction = await EventoService.crearTransaccion();
-
         try {
-            const eventoActualizado = req.evento; 
+            const eventoActualizado = req.evento;
 
             await eventoActualizado.update(
                 { estado: ESTADOS.CANCELADO, fecha_actualizacion: new Date() },
@@ -193,44 +192,44 @@ class EventoController {
                 usuario: { id: req.usuario.id, nombre: req.usuario.nombre }
             });
 
+            transaction.afterCommit(async () => {
+                try {
+                    const { participantes, creador } = await EventoService.obtenerNotificacionesCancelacion(eventoActualizado);
+                    const correoDelCreador = creador ? creador.correo : null;
+
+                    for (const usuario of participantes) {
+                        await EmailService.enviarNotificacionCancelacion(
+                            usuario.correo,
+                            usuario.nombre,
+                            eventoActualizado.titulo,
+                            correoDelCreador
+                        );
+                    }
+
+                    if (creador) {
+                        await EmailService.enviarConfirmacionCancelacionCreador(
+                            creador.correo,
+                            creador.nombre,
+                            eventoActualizado.titulo
+                        );
+                    }
+
+                    await NotificacionService.crearNotificacionEventoCancelado(
+                        eventoActualizado,
+                        participantes,
+                        creador
+                    );
+                } catch (notificationError) {
+                    console.error('Error al enviar notificaciones de cancelación:', notificationError);
+                }
+            });
+
             await transaction.commit();
 
-            try {
-                const { participantes, creador } = await EventoService.obtenerNotificacionesCancelacion(eventoActualizado);
-                
-                const correoDelCreador = creador ? creador.correo : null;
-
-                for (const usuario of participantes) {
-                    await EmailService.enviarNotificacionCancelacion(
-                        usuario.correo,
-                        usuario.nombre,
-                        eventoActualizado.titulo,
-                        correoDelCreador 
-                    );
-                }
-
-                if (creador) {
-                    await EmailService.enviarConfirmacionCancelacionCreador(
-                        creador.correo,
-                        creador.nombre,
-                        eventoActualizado.titulo
-                    );
-                }
-
-                await NotificacionService.crearNotificacionEventoCancelado(
-                    eventoActualizado,
-                    participantes,
-                    creador
-                );
-
-            } catch (notificationError) { 
-                console.error('Error al enviar notificaciones de cancelación (evento ya cancelado):', notificationError);
-            }
             return res.json({
                 success: true,
                 message: MENSAJES.CANCELADO
             });
-
         } catch (error) {
             await transaction.rollback();
             console.error('Error al eliminar evento:', error);
@@ -241,6 +240,7 @@ class EventoController {
             });
         }
     }
+
 }
 
 module.exports = new EventoController();
