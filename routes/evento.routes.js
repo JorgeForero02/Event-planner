@@ -40,7 +40,7 @@ router.get(
     '/:eventoId/actividades',
     auth,
     auditoriaMiddleware('GET'),
-    actividadController.obtenerActividadesEvento
+    actividadController.obtenerActividadesPorEvento
 );
 
 module.exports = router;
