@@ -134,15 +134,25 @@ class EventoController {
         const transaction = await EventoService.crearTransaccion();
 
         try {
-            const eventoActualizado = req.params.eventoId;
+            const eventoActualizado = req.evento;
 
-            const validacion = EventoValidator.validarActualizacion(req.body);
+            const errorValidacion = EventoValidator.validarActualizacion(req.body);
 
-            if (!validacion.esValida) {
+            if (errorValidacion) {
                 await transaction.rollback();
                 return res.status(400).json({
                     success: false,
-                    message: validacion.mensaje
+                    message: errorValidacion
+                });
+            }
+
+            const validacionAgenda = await EventoValidator.validarAgenda(eventoActualizado.id);
+            
+            if (!validacionAgenda.esValida) {
+                await transaction.rollback();
+                return res.status(409).json({
+                    success: false,
+                    message: validacionAgenda.mensaje
                 });
             }
 
@@ -178,7 +188,7 @@ class EventoController {
     async eliminarEvento(req, res) {
         const transaction = await EventoService.crearTransaccion();
         try {
-            const eventoActualizado = req.params.eventoId;
+            const eventoActualizado = req.evento;
 
             await eventoActualizado.update(
                 { estado: ESTADOS.CANCELADO, fecha_actualizacion: new Date() },
@@ -240,7 +250,6 @@ class EventoController {
             });
         }
     }
-
 }
 
 module.exports = new EventoController();
