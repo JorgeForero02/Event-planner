@@ -5,9 +5,9 @@ const AuditoriaService = require('../services/auditoriaService');
 const { CODIGOS_HTTP, MENSAJES_RESPUESTA } = require('../constants/actividad.constants');
 
 class ActividadController {
+
     async crearActividad(req, res) {
         const transaction = await ActividadService.crearTransaccion();
-
         try {
             const { eventoId } = req.params;
             const datosActividad = req.body;
@@ -23,6 +23,24 @@ class ActividadController {
                 });
             }
 
+            const errorSolapamiento = await ActividadValidator.validarSolapamiento(
+                null, 
+                eventoId,
+                datosActividad.fecha_actividad,
+                datosActividad.hora_inicio,
+                datosActividad.hora_fin,
+                datosActividad.lugares || [],
+                datosActividad.ponentes || []
+            );
+
+            if (errorSolapamiento) {
+                await transaction.rollback();
+                return res.status(CODIGOS_HTTP.CONFLICT).json({
+                    success: false,
+                    message: errorSolapamiento
+                });
+            }
+
             const actividad = await ActividadService.crear(
                 eventoId,
                 datosActividad,
@@ -30,116 +48,106 @@ class ActividadController {
                 transaction
             );
 
-            await AuditoriaService.registrar({
-                mensaje: `Se creó la actividad: ${datosActividad.titulo} para evento ${evento.titulo}`,
-                tipo: 'POST',
-                accion: 'crear_actividad',
-                usuario: { id: usuario.id, nombre: usuario.nombre }
-            });
+            await AuditoriaService.registrarAccion(
+                usuario.id,
+                'CREAR',
+                'actividad',
+                actividad.id_actividad,
+                datosActividad
+            );
 
             await transaction.commit();
 
-            return res.status(CODIGOS_HTTP.CREADO).json({
+            return res.status(CODIGOS_HTTP.CREATED).json({
                 success: true,
                 message: MENSAJES_RESPUESTA.ACTIVIDAD_CREADA,
                 data: actividad
             });
+
         } catch (error) {
             await transaction.rollback();
             console.error('Error al crear actividad:', error);
-            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
+            return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
                 success: false,
-                message: MENSAJES_RESPUESTA.ERROR_CREAR,
-                error: error.message
+                message: MENSAJES_RESPUESTA.ERROR_CREAR
             });
         }
     }
 
-    async obtenerActividadesEvento(req, res) {
+    async obtenerActividadesPorEvento(req, res) {
         try {
             const { eventoId } = req.params;
-
-            const evento = await ActividadService.buscarEventoPorId(eventoId);
-            if (!evento) {
-                return res.status(CODIGOS_HTTP.NOT_FOUND).json({
-                    success: false,
-                    message: MENSAJES_RESPUESTA.EVENTO_NO_ENCONTRADO
-                });
-            }
-
             const actividades = await ActividadService.buscarTodasPorEvento(eventoId);
 
-            return res.json({
+            return res.status(CODIGOS_HTTP.OK).json({
                 success: true,
-                message: MENSAJES_RESPUESTA.ACTIVIDADES_OBTENIDAS,
-                total: actividades.length,
                 data: actividades
             });
+
         } catch (error) {
             console.error('Error al obtener actividades:', error);
-            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
+            return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
                 success: false,
-                message: MENSAJES_RESPUESTA.ERROR_OBTENER,
-                error: error.message
+                message: MENSAJES_RESPUESTA.ERROR_OBTENER
             });
         }
     }
 
-    async obtenerActividadById(req, res) {
+    async obtenerActividadPorId(req, res) {
         try {
-            const { actividadId } = req.params;
-            const usuario = req.usuario;
+            const actividad = req.actividad;
 
-            const resultadoPermiso = await PermisosService.verificarPermisoLectura(usuario, actividadId);
-
-            if (!resultadoPermiso.tienePermiso) {
-                return res.status(resultadoPermiso.codigoEstado).json({
-                    success: false,
-                    message: resultadoPermiso.mensaje
-                });
-            }
-
-            return res.json({
+            return res.status(CODIGOS_HTTP.OK).json({
                 success: true,
-                message: MENSAJES_RESPUESTA.ACTIVIDAD_OBTENIDA,
-                data: resultadoPermiso.actividad
+                data: actividad
             });
+
         } catch (error) {
             console.error('Error al obtener actividad:', error);
-            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
+            return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
                 success: false,
-                message: MENSAJES_RESPUESTA.ERROR_OBTENER,
-                error: error.message
+                message: MENSAJES_RESPUESTA.ERROR_OBTENER
             });
         }
     }
 
     async actualizarActividad(req, res) {
         const transaction = await ActividadService.crearTransaccion();
-
         try {
-            const { actividadId } = req.params;
+            const { eventoId, actividadId } = req.params;
             const datosActualizacion = req.body;
-            const usuario = req.usuario;
+            const evento = req.evento;
+            const actividad = req.actividad;
 
-            const resultadoPermiso = await PermisosService.verificarPermisoEscritura(usuario, actividadId);
+            const errorValidacion = ActividadValidator.validarActualizacion(
+                datosActualizacion,
+                actividad,
+                evento
+            );
 
-            if (!resultadoPermiso.tienePermiso) {
-                await transaction.rollback();
-                return res.status(resultadoPermiso.codigoEstado).json({
-                    success: false,
-                    message: resultadoPermiso.mensaje
-                });
-            }
-
-            const { actividad, evento } = resultadoPermiso;
-
-            const errorValidacion = ActividadValidator.validarActualizacion(datosActualizacion, actividad, evento);
             if (errorValidacion) {
                 await transaction.rollback();
                 return res.status(CODIGOS_HTTP.BAD_REQUEST).json({
                     success: false,
                     message: errorValidacion
+                });
+            }
+
+            const errorSolapamiento = await ActividadValidator.validarSolapamiento(
+                actividadId, 
+                eventoId,
+                datosActualizacion.fecha_actividad || actividad.fecha_actividad,
+                datosActualizacion.hora_inicio || actividad.hora_inicio,
+                datosActualizacion.hora_fin || actividad.hora_fin,
+                datosActualizacion.lugares || [],
+                datosActualizacion.ponentes || []
+            );
+
+            if (errorSolapamiento) {
+                await transaction.rollback();
+                return res.status(CODIGOS_HTTP.CONFLICT).json({
+                    success: false,
+                    message: errorSolapamiento
                 });
             }
 
@@ -150,72 +158,61 @@ class ActividadController {
                 transaction
             );
 
-            await AuditoriaService.registrar({
-                mensaje: `Se actualizó la actividad: ${actividad.titulo}`,
-                tipo: 'PUT',
-                accion: 'actualizar_actividad',
-                usuario: { id: usuario.id, nombre: usuario.nombre }
-            });
+            await AuditoriaService.registrarAccion(
+                req.usuario.id,
+                'ACTUALIZAR',
+                'actividad',
+                actividadId,
+                datosActualizacion
+            );
 
             await transaction.commit();
 
-            return res.json({
+            return res.status(CODIGOS_HTTP.OK).json({
                 success: true,
                 message: MENSAJES_RESPUESTA.ACTIVIDAD_ACTUALIZADA,
                 data: actividadActualizada
             });
+
         } catch (error) {
             await transaction.rollback();
             console.error('Error al actualizar actividad:', error);
-            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
+            return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
                 success: false,
-                message: MENSAJES_RESPUESTA.ERROR_ACTUALIZAR,
-                error: error.message
+                message: MENSAJES_RESPUESTA.ERROR_ACTUALIZAR
             });
         }
     }
 
     async eliminarActividad(req, res) {
         const transaction = await ActividadService.crearTransaccion();
-
         try {
             const { actividadId } = req.params;
-            const usuario = req.usuario;
-
-            const resultadoPermiso = await PermisosService.verificarPermisoEscritura(usuario, actividadId);
-
-            if (!resultadoPermiso.tienePermiso) {
-                await transaction.rollback();
-                return res.status(resultadoPermiso.codigoEstado).json({
-                    success: false,
-                    message: resultadoPermiso.mensaje
-                });
-            }
-
-            const { actividad } = resultadoPermiso;
+            const actividad = req.actividad;
 
             await ActividadService.eliminar(actividadId, transaction);
 
-            await AuditoriaService.registrar({
-                mensaje: `Se eliminó la actividad: ${actividad.titulo}`,
-                tipo: 'DELETE',
-                accion: 'eliminar_actividad',
-                usuario: { id: usuario.id, nombre: usuario.nombre }
-            });
+            await AuditoriaService.registrarAccion(
+                req.usuario.id,
+                'ELIMINAR',
+                'actividad',
+                actividadId,
+                null
+            );
 
             await transaction.commit();
 
-            return res.json({
+            return res.status(CODIGOS_HTTP.OK).json({
                 success: true,
                 message: MENSAJES_RESPUESTA.ACTIVIDAD_ELIMINADA
             });
+
         } catch (error) {
             await transaction.rollback();
             console.error('Error al eliminar actividad:', error);
-            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
+            return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
                 success: false,
-                message: MENSAJES_RESPUESTA.ERROR_ELIMINAR,
-                error: error.message
+                message: MENSAJES_RESPUESTA.ERROR_ELIMINAR
             });
         }
     }

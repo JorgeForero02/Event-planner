@@ -1,6 +1,9 @@
 const { MENSAJES_VALIDACION } = require('../constants/actividad.constants');
+const { Actividad, Lugar, Ponente, PonenteActividad, LugarActividad } = require('../models');
+const { Op } = require('sequelize');
 
 class ActividadValidator {
+
     validarCreacion(datosActividad, evento) {
         const { titulo, hora_inicio, hora_fin, fecha_actividad } = datosActividad;
 
@@ -38,7 +41,6 @@ class ActividadValidator {
 
         const fechaActividad = datosActualizacion.fecha_actividad || actividad.fecha_actividad;
         const errorFecha = this._validarFechaActividad(fechaActividad, evento);
-
         if (errorFecha) {
             return errorFecha;
         }
@@ -46,15 +48,68 @@ class ActividadValidator {
         return null;
     }
 
-    _validarFechaActividad(fechaActividad, evento) {
-        const fechaAct = new Date(fechaActividad);
-        const fechaInicioEvento = new Date(evento.fecha_inicio);
-        const fechaFinEvento = new Date(evento.fecha_fin);
+    async validarSolapamiento(actividadId, eventoId, fechaActividad, horaInicio, horaFin, idsLugares = [], idsPonentes = []) {
+        const actividadesEnFecha = await Actividad.findAll({
+            where: {
+                id_evento: eventoId,
+                fecha_actividad: fechaActividad,
+                id_actividad: {
+                    [Op.ne]: actividadId || 0 
+                }
+            },
+            include: [
+                {
+                    model: Lugar,
+                    as: 'lugares',
+                    attributes: ['id'],
+                    through: { attributes: [] }
+                }
+            ]
+        });
 
-        if (fechaAct < fechaInicioEvento || fechaAct > fechaFinEvento) {
-            return `La fecha de la actividad (${fechaActividad}) debe estar dentro del rango del evento (${evento.fecha_inicio} al ${evento.fecha_fin})`;
+        for (const actividad of actividadesEnFecha) {
+            const haySolapamiento = this._detectarSolapamientoHorario(
+                horaInicio,
+                horaFin,
+                actividad.hora_inicio,
+                actividad.hora_fin
+            );
+
+            if (haySolapamiento) {
+                const lugaresActividad = actividad.lugares.map(l => l.id);
+                const compartenSala = idsLugares.some(id => lugaresActividad.includes(id));
+
+                if (compartenSala) {
+                    return 'Conflicto detectado: el horario seleccionado se superpone con otra actividad en la misma sala.';
+                }
+
+                if (idsPonentes && idsPonentes.length > 0) {
+                    const ponentesActividad = await PonenteActividad.findAll({
+                        where: { id_actividad: actividad.id_actividad },
+                        attributes: ['id_ponente']
+                    });
+
+                    const idsPonenteActividad = ponentesActividad.map(pa => pa.id_ponente);
+                    const compartenPonente = idsPonentes.some(id => idsPonenteActividad.includes(id));
+
+                    if (compartenPonente) {
+                        return 'Conflicto detectado: el horario seleccionado se superpone con otra actividad con el mismo ponente.';
+                    }
+                }
+            }
         }
 
+        return null; 
+    }
+
+    _detectarSolapamientoHorario(inicio1, fin1, inicio2, fin2) {
+        return inicio1 < fin2 && fin1 > inicio2;
+    }
+
+    _validarFechaActividad(fechaActividad, evento) {
+        if (fechaActividad < evento.fecha_inicio || fechaActividad > evento.fecha_fin) {
+            return MENSAJES_VALIDACION.FECHA_FUERA_RANGO;
+        }
         return null;
     }
 }

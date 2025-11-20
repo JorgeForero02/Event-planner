@@ -4,6 +4,7 @@ const CODIGOS_HTTP = {
     BAD_REQUEST: 400,
     FORBIDDEN: 403,
     NOT_FOUND: 404,
+    CONFLICT: 409,
     ERROR_INTERNO: 500
 };
 
