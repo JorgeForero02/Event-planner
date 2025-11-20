@@ -95,11 +95,19 @@ class ActividadController {
 
     async obtenerActividadPorId(req, res) {
         try {
-            const actividad = req.actividad;
-
+            const { actividadId } = req.params;
+            console.log('Actividad encontrada en el middleware:', actividadId);
+            const actividadConDetalles = await ActividadService.buscarPorId(actividadId);
+            
+            if (!actividadConDetalles) {
+                return res.status(CODIGOS_HTTP.NOT_FOUND).json({
+                    success: false,
+                    message: MENSAJES_RESPUESTA.ERROR_OBTENER
+                });
+            }
             return res.status(CODIGOS_HTTP.OK).json({
                 success: true,
-                data: actividad
+                data: actividadConDetalles
             });
 
         } catch (error) {

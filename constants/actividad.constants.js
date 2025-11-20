@@ -26,7 +26,8 @@ const MENSAJES_RESPUESTA = {
     ERROR_CREAR: 'Error al crear la actividad',
     ERROR_ACTUALIZAR: 'Error al actualizar actividad',
     ERROR_ELIMINAR: 'Error al eliminar actividad',
-    ERROR_OBTENER: 'Error al obtener actividad'
+    ERROR_OBTENER: 'Error al obtener actividad',
+    ACTIVIDAD_NO_ENCONTRADA: 'Actividad no encontrada'
 };
 
 const MENSAJES_PERMISOS = {
