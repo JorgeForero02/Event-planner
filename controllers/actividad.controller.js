@@ -154,7 +154,7 @@ class ActividadController {
 
             const errorSolapamiento = await ActividadValidator.validarSolapamiento(
                 actividadId,
-                actividad.id_evento, 
+                actividadAnt.id_evento, 
                 datosActualizacion.fecha_actividad || actividad.fecha_actividad,
                 datosActualizacion.hora_inicio || actividad.hora_inicio,
                 datosActualizacion.hora_fin || actividad.hora_fin,
