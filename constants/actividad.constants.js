@@ -27,6 +27,7 @@ const MENSAJES_RESPUESTA = {
     ERROR_ACTUALIZAR: 'Error al actualizar actividad',
     ERROR_ELIMINAR: 'Error al eliminar actividad',
     ERROR_OBTENER: 'Error al obtener actividad',
+    
     ACTIVIDAD_NO_ENCONTRADA: 'Actividad no encontrada'
 };
 
@@ -42,6 +43,7 @@ const MENSAJES_VALIDACION = {
     HORAS_REQUERIDAS: 'Las horas de inicio y fin son requeridas',
     HORAS_INVALIDAS: 'La hora de inicio debe ser anterior a la hora de fin',
     FECHA_REQUERIDA: 'La fecha de la actividad es requerida',
+    FECHA_FUERA_RANGO: 'La fecha de la actividad debe estar dentro del rango de fechas del evento',
     LUGARES_INVALIDOS: 'Uno o más de los lugares especificados no son válidos o no pertenecen a esta empresa'
 };
 
