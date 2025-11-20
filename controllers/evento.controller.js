@@ -134,7 +134,7 @@ class EventoController {
         const transaction = await EventoService.crearTransaccion();
 
         try {
-            const eventoActualizado = req.evento;
+            const eventoActualizado = req.params.eventoId;
 
             const validacion = EventoValidator.validarActualizacion(req.body);
 
@@ -178,7 +178,7 @@ class EventoController {
     async eliminarEvento(req, res) {
         const transaction = await EventoService.crearTransaccion();
         try {
-            const eventoActualizado = req.evento;
+            const eventoActualizado = req.params.eventoId;
 
             await eventoActualizado.update(
                 { estado: ESTADOS.CANCELADO, fecha_actualizacion: new Date() },
