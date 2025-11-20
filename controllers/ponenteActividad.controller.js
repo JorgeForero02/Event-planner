@@ -278,7 +278,7 @@ class PonenteActividadController {
                         responsable.nombre,
                         usuario.nombre, 
                         asignacion.actividad.titulo,
-                        aceptar 
+                        nuevoEstado 
                     );
                 }
             } catch (emailError) {
