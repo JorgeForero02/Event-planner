@@ -24,7 +24,7 @@ class ActividadController {
             }
 
             const errorSolapamiento = await ActividadValidator.validarSolapamiento(
-                null, 
+                null,
                 eventoId,
                 datosActividad.fecha_actividad,
                 datosActividad.hora_inicio,
@@ -48,17 +48,18 @@ class ActividadController {
                 transaction
             );
 
-            await AuditoriaService.registrarCreacion(
-                'actividad',
-                {
-                    id: actividad.id,   
-                    titulo: actividad.titulo,
-                    evento: evento.titulo
-                },
-                usuario
-            );
-
             await transaction.commit();
+
+            try {
+                await AuditoriaService.registrar({
+                    mensaje: `Se creó la actividad: ${actividad.titulo}`,
+                    tipo: 'POST',
+                    accion: 'crear_actividad',
+                    usuario: { id: usuario.id, nombre: usuario.nombre }
+                });
+            } catch (auditError) {
+                console.error('Error al registrar auditoría:', auditError);
+            }
 
             return res.status(CODIGOS_HTTP.CREATED).json({
                 success: true,
@@ -67,7 +68,9 @@ class ActividadController {
             });
 
         } catch (error) {
-            await transaction.rollback();
+            if (transaction.finished !== 'commit') {
+                await transaction.rollback();
+            }
             console.error('Error al crear actividad:', error);
             return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
                 success: false,
@@ -97,19 +100,11 @@ class ActividadController {
 
     async obtenerActividadPorId(req, res) {
         try {
-            const { actividadId } = req.params;
-            console.log('Actividad encontrada en el middleware:', actividadId);
-            const actividadConDetalles = await ActividadService.buscarPorId(actividadId);
-            
-            if (!actividadConDetalles) {
-                return res.status(CODIGOS_HTTP.NOT_FOUND).json({
-                    success: false,
-                    message: MENSAJES_RESPUESTA.ERROR_OBTENER
-                });
-            }
+            const actividad = req.actividad;
+
             return res.status(CODIGOS_HTTP.OK).json({
                 success: true,
-                data: actividadConDetalles
+                data: actividad
             });
 
         } catch (error) {
@@ -144,7 +139,7 @@ class ActividadController {
             }
 
             const errorSolapamiento = await ActividadValidator.validarSolapamiento(
-                actividadId, 
+                actividadId,
                 eventoId,
                 datosActualizacion.fecha_actividad || actividad.fecha_actividad,
                 datosActualizacion.hora_inicio || actividad.hora_inicio,
@@ -168,16 +163,18 @@ class ActividadController {
                 transaction
             );
 
-            await AuditoriaService.registrarActualizacion(
-                req.usuario.id,
-                'ACTUALIZAR',
-                'actividad',
-                actividadId,
-                datosActualizacion,
-                actividad
-            );
-
             await transaction.commit();
+
+            try {
+                await AuditoriaService.registrar({
+                    mensaje: `Se actualizó la actividad: ${actividad.titulo}`,
+                    tipo: 'PUT',
+                    accion: 'actualizar_actividad',
+                    usuario: { id: req.usuario.id, nombre: req.usuario.nombre }
+                });
+            } catch (auditError) {
+                console.error('Error al registrar auditoría:', auditError);
+            }
 
             return res.status(CODIGOS_HTTP.OK).json({
                 success: true,
@@ -186,7 +183,9 @@ class ActividadController {
             });
 
         } catch (error) {
-            await transaction.rollback();
+            if (transaction.finished !== 'commit') {
+                await transaction.rollback();
+            }
             console.error('Error al actualizar actividad:', error);
             return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
                 success: false,
@@ -203,15 +202,18 @@ class ActividadController {
 
             await ActividadService.eliminar(actividadId, transaction);
 
-            await AuditoriaService.registrarEliminacion(
-                req.usuario.id,
-                'ELIMINAR',
-                'actividad',
-                actividadId,
-                null
-            );
-
             await transaction.commit();
+
+            try {
+                await AuditoriaService.registrar({
+                    mensaje: `Se eliminó la actividad: ${actividad.titulo}`,
+                    tipo: 'DELETE',
+                    accion: 'eliminar_actividad',
+                    usuario: { id: req.usuario.id, nombre: req.usuario.nombre }
+                });
+            } catch (auditError) {
+                console.error('Error al registrar auditoría:', auditError);
+            }
 
             return res.status(CODIGOS_HTTP.OK).json({
                 success: true,
@@ -219,7 +221,9 @@ class ActividadController {
             });
 
         } catch (error) {
-            await transaction.rollback();
+            if (transaction.finished !== 'commit') {
+                await transaction.rollback();
+            }
             console.error('Error al eliminar actividad:', error);
             return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
                 success: false,
