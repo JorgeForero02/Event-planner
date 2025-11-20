@@ -8,7 +8,7 @@ router.get(
     '/:actividadId',
     auth,
     auditoriaMiddleware('GET'),
-    actividadController.obtenerActividadById
+    actividadController.obtenerActividadPorId
 );
 
 router.put(
