@@ -48,12 +48,14 @@ class ActividadController {
                 transaction
             );
 
-            await AuditoriaService.registrarAccion(
-                usuario.id,
-                'CREAR',
+            await AuditoriaService.registrarCreacion(
                 'actividad',
-                actividad.id_actividad,
-                datosActividad
+                {
+                    id: actividad.id,   
+                    titulo: actividad.titulo,
+                    evento: evento.titulo
+                },
+                usuario
             );
 
             await transaction.commit();
@@ -166,12 +168,13 @@ class ActividadController {
                 transaction
             );
 
-            await AuditoriaService.registrarAccion(
+            await AuditoriaService.registrarActualizacion(
                 req.usuario.id,
                 'ACTUALIZAR',
                 'actividad',
                 actividadId,
-                datosActualizacion
+                datosActualizacion,
+                actividad
             );
 
             await transaction.commit();
@@ -200,7 +203,7 @@ class ActividadController {
 
             await ActividadService.eliminar(actividadId, transaction);
 
-            await AuditoriaService.registrarAccion(
+            await AuditoriaService.registrarEliminacion(
                 req.usuario.id,
                 'ELIMINAR',
                 'actividad',
