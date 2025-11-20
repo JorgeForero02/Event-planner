@@ -2,6 +2,7 @@ const ActividadService = require('../services/actividad.service');
 const ActividadValidator = require('../validators/actividad.validator');
 const PermisosService = require('../services/permisos.service');
 const AuditoriaService = require('../services/auditoriaService');
+const notificacionService = require('../services/notificacion.service');
 const { CODIGOS_HTTP, MENSAJES_RESPUESTA } = require('../constants/actividad.constants');
 
 class ActividadController {
@@ -176,6 +177,9 @@ class ActividadController {
                 evento,
                 transaction
             );
+
+            await notificacionService.crearNotificacionActualizacionEvento(actividadActualizada, transaction);
+        
 
             await transaction.commit();
 

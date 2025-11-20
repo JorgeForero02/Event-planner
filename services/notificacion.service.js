@@ -30,6 +30,41 @@ class NotificacionService {
         }
     }
 
+    async crearNotificacionActualizacionEvento(actividadActualizada, transaction = null) {
+        const tipoNotificacion = await TipoNotificacion.findOne({
+            where: { nombre: 'actualizacion_actividad' }
+        });
+
+        const notificaciones = [];
+        const nombreEvento = actividadActualizada.evento.titulo;
+        const nombreActividad = actividadActualizada.titulo;
+
+        const cambios = actividadActualizada.cambios || {};
+        const camposModificados = Object.keys(cambios);
+        const descripcionCambios = camposModificados.length > 0
+            ? `Campos actualizados: ${camposModificados.join(', ')}`
+            : 'Se han realizado actualizaciones en la actividad';
+        for (const ponente of actividadActualizada.ponentes) {
+            const notif = await this.crear({
+                id_TipoNotificacion: tipoNotificacion?.id || 1,
+                titulo: `Actualización en Actividad: ${nombreActividad}`,
+                contenido: `La actividad "${nombreActividad}" del evento "${nombreEvento}" en la que estás asignado ha sido actualizada. ${descripcionCambios}.`,
+                entidad_tipo: TIPOS_ENTIDAD.ACTIVIDAD,
+                entidad_id: actividadActualizada.id_actividad,
+                id_destinatario: ponente.id_usuario,
+                id_evento: actividadActualizada.id_evento,
+                datos_adicionales: {
+                    id_actividad: actividadActualizada.id_actividad,
+                    nombre_actividad: nombreActividad,
+                    id_evento: actividadActualizada.id_evento,
+                    nombre_evento: nombreEvento,
+                }
+            }, transaction);
+            notificaciones.push(notif);
+        }
+        return notificaciones;
+    }
+
     async obtenerResponsablesEvento(eventoId) {
         const evento = await Evento.findByPk(eventoId, {
             include: [
