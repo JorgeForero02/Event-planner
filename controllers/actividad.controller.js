@@ -119,10 +119,19 @@ class ActividadController {
     async actualizarActividad(req, res) {
         const transaction = await ActividadService.crearTransaccion();
         try {
-            const { eventoId, actividadId } = req.params;
+            const { actividadId } = req.params; 
             const datosActualizacion = req.body;
-            const evento = req.evento;
             const actividad = req.actividad;
+
+            const evento = await ActividadService.buscarEventoPorId(actividad.id_evento);
+
+            if (!evento) {
+                await transaction.rollback();
+                return res.status(CODIGOS_HTTP.NOT_FOUND).json({
+                    success: false,
+                    message: 'Evento no encontrado'
+                });
+            }
 
             const errorValidacion = ActividadValidator.validarActualizacion(
                 datosActualizacion,
@@ -140,7 +149,7 @@ class ActividadController {
 
             const errorSolapamiento = await ActividadValidator.validarSolapamiento(
                 actividadId,
-                eventoId,
+                actividad.id_evento, 
                 datosActualizacion.fecha_actividad || actividad.fecha_actividad,
                 datosActualizacion.hora_inicio || actividad.hora_inicio,
                 datosActualizacion.hora_fin || actividad.hora_fin,
@@ -193,6 +202,7 @@ class ActividadController {
             });
         }
     }
+
 
     async eliminarActividad(req, res) {
         const transaction = await ActividadService.crearTransaccion();
