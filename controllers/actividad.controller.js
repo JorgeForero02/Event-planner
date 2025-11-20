@@ -181,7 +181,7 @@ class ActividadController {
 
             try {
                 await AuditoriaService.registrar({
-                    mensaje: `Se actualizó la actividad: ${actividad.titulo}`,
+                    mensaje: `Se actualizó la actividad: ${actividadAnt.titulo}`,
                     tipo: 'PUT',
                     accion: 'actualizar_actividad',
                     usuario: { id: req.usuario.id, nombre: req.usuario.nombre }
