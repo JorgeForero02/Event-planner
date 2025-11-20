@@ -61,7 +61,7 @@ class ActividadController {
                 console.error('Error al registrar auditoría:', auditError);
             }
 
-            return res.status(CODIGOS_HTTP.CREATED).json({
+            return res.status(CODIGOS_HTTP.CREADO).json({
                 success: true,
                 message: MENSAJES_RESPUESTA.ACTIVIDAD_CREADA,
                 data: actividad
@@ -72,7 +72,7 @@ class ActividadController {
                 await transaction.rollback();
             }
             console.error('Error al crear actividad:', error);
-            return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
+            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
                 success: false,
                 message: MENSAJES_RESPUESTA.ERROR_CREAR
             });
@@ -91,7 +91,7 @@ class ActividadController {
 
         } catch (error) {
             console.error('Error al obtener actividades:', error);
-            return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
+            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
                 success: false,
                 message: MENSAJES_RESPUESTA.ERROR_OBTENER
             });
@@ -109,7 +109,7 @@ class ActividadController {
 
         } catch (error) {
             console.error('Error al obtener actividad:', error);
-            return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
+            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
                 success: false,
                 message: MENSAJES_RESPUESTA.ERROR_OBTENER
             });
@@ -187,7 +187,7 @@ class ActividadController {
                 await transaction.rollback();
             }
             console.error('Error al actualizar actividad:', error);
-            return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
+            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
                 success: false,
                 message: MENSAJES_RESPUESTA.ERROR_ACTUALIZAR
             });
@@ -225,7 +225,7 @@ class ActividadController {
                 await transaction.rollback();
             }
             console.error('Error al eliminar actividad:', error);
-            return res.status(CODIGOS_HTTP.INTERNAL_SERVER_ERROR).json({
+            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
                 success: false,
                 message: MENSAJES_RESPUESTA.ERROR_ELIMINAR
             });
