@@ -100,8 +100,10 @@ class ActividadController {
 
     async obtenerActividadPorId(req, res) {
         try {
-            const actividad = req.actividad;
 
+            const { actividadId } = req.params;
+            const actividad = await ActividadService.buscarPorId(actividadId);
+            
             return res.status(CODIGOS_HTTP.OK).json({
                 success: true,
                 data: actividad
@@ -119,11 +121,14 @@ class ActividadController {
     async actualizarActividad(req, res) {
         const transaction = await ActividadService.crearTransaccion();
         try {
-            const { actividadId } = req.params; 
+            const { actividadId } = req.params;
+            
+            const actividadAnt = await ActividadService.buscarPorId(actividadId);
+            
             const datosActualizacion = req.body;
             const actividad = req.actividad;
 
-            const evento = await ActividadService.buscarEventoPorId(actividad.id_evento);
+            const evento = await ActividadService.buscarEventoPorId(actividadAnt.id_evento);
 
             if (!evento) {
                 await transaction.rollback();
