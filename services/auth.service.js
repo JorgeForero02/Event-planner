@@ -107,7 +107,7 @@ class AuthService {
             await AdministradorEmpresa.create({
                 id_usuario: idUsuario,
                 id_empresa: idEmpresa,
-                es_Gerente: 1
+                es_Gerente: ROL_GERENTE
             });
 
         return {
