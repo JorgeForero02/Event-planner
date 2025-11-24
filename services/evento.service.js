@@ -2,6 +2,7 @@ const { Evento, Empresa, Usuario, Actividad, Inscripcion, Lugar, Asistente, Pone
 const { ESTADOS, MODALIDADES } = require('../constants/evento.constants');
 const { Op } = require('sequelize');
 const notificacionService = require('./notificacion.service');
+const EncuestaService = require('./encuesta.service');
 
 class EventoService {
 
@@ -25,13 +26,24 @@ class EventoService {
         }
 
         const fechaHoy = this._obtenerFechaHoy();
+
         if (evento.estado === ESTADOS.PUBLICADO && fechaHoy > evento.fecha_fin) {
             try {
                 await evento.update({ estado: ESTADOS.FINALIZADO });
+
+                const transaction = await this.crearTransaccion();
+                try {
+                    await this.enviarEncuestasSatisfaccion(evento.id, transaction);
+                    await transaction.commit();
+                } catch (encuestaError) {
+                    await transaction.rollback();
+                    console.error('Error al enviar encuestas de satisfacción:', encuestaError);
+                }
             } catch (error) {
                 console.error(`Error al auto-finalizar evento ${evento.id}:`, error.message);
             }
         }
+
         return evento;
     }
 
@@ -307,6 +319,29 @@ class EventoService {
             participantes: Array.from(notificadosMap.values()),
             creador: creadorJson
         };
+    }
+
+    async enviarEncuestasSatisfaccion(eventoId, transaction) {
+        try {
+            const encuestas = await EncuestaService.obtenerEncuestasActivas({
+                id_evento: eventoId,
+                tipo_encuesta: 'satisfaccion_evento'
+            });
+
+            const resultados = [];
+            for (const encuesta of encuestas) {
+                const envios = await EncuestaService.enviarEncuestasMasivas(
+                    encuesta.id,
+                    transaction
+                );
+                resultados.push({ encuesta, envios });
+            }
+
+            return resultados;
+        } catch (error) {
+            console.error('Error al enviar encuestas de satisfacción:', error);
+            throw error;
+        }
     }
 }
 

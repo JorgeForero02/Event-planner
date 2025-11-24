@@ -19,6 +19,8 @@ const Asistencia = require('./Asistencia');
 const TipoNotificacion = require('./TipoNotificacion');
 const Notificacion = require('./Notificacion');
 const Auditoria = require('./Auditoria');
+const Encuesta = require('./Encuesta');
+const RespuestaEncuesta = require('./RespuestaEncuesta');
 
 Usuario.hasOne(Administrador, { foreignKey: 'id_usuario', as: 'administrador' });
 Administrador.belongsTo(Usuario, { foreignKey: 'id_usuario', as: 'usuario' });
@@ -152,6 +154,15 @@ Notificacion.belongsTo(TipoNotificacion, { foreignKey: 'id_TipoNotificacion', as
 Usuario.hasMany(Notificacion, { foreignKey: 'id_destinatario', as: 'notificaciones' });
 Notificacion.belongsTo(Usuario, { foreignKey: 'id_destinatario', as: 'destinatario' });
 
+Encuesta.belongsTo(Evento, { foreignKey: 'id_evento', as: 'evento' });
+Encuesta.belongsTo(Actividad, { foreignKey: 'id_actividad', as: 'actividad' });
+Evento.hasMany(Encuesta, { foreignKey: 'id_evento', as: 'encuestas' });
+Actividad.hasMany(Encuesta, { foreignKey: 'id_actividad', as: 'encuestas' });
+
+RespuestaEncuesta.belongsTo(Encuesta, { foreignKey: 'id_encuesta', as: 'encuesta' });
+RespuestaEncuesta.belongsTo(Inscripcion, { foreignKey: 'id_asistente', as: 'asistente' });
+Encuesta.hasMany(RespuestaEncuesta, { foreignKey: 'id_encuesta', as: 'respuestas' });
+
 const db = {
   sequelize,
   Sequelize: require('sequelize'),
@@ -173,7 +184,9 @@ const db = {
   Asistencia,
   TipoNotificacion,
   Notificacion,
-  Auditoria
+  Auditoria,
+  Encuesta,
+  RespuestaEncuesta
 };
 
 module.exports = db;

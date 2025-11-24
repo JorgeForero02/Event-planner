@@ -166,7 +166,7 @@ const EmailService = {
         destinatario,
         nombreUsuario,
         nombreEvento,
-        correoCreador 
+        correoCreador
     ) => {
 
         const infoContacto = correoCreador
@@ -269,7 +269,7 @@ const EmailService = {
         nombreEvento,
         codigoConfirmacion
     ) => {
-        
+
         const urlConfirmacion = `${process.env.BASE_URL || 'http://localhost:3000'}/api/inscripciones/confirmar/${codigoConfirmacion}`;
 
         const mailOptions = {
@@ -301,7 +301,7 @@ const EmailService = {
             console.log('Correo de invitación de inscripción enviado a:', destinatario);
         } catch (error) {
             console.error('Error enviando correo de invitación de inscripción:', error);
-            throw error; 
+            throw error;
         }
     },
 
@@ -349,7 +349,7 @@ const EmailService = {
         comentariosAdmin
     ) => {
         const esAprobada = aprobada === true || aprobada === 'true' || aprobada === 1;
-        
+
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: destinatario,
@@ -363,7 +363,7 @@ const EmailService = {
                     : `<h3 style="color: #dc3545;">Tu solicitud ha sido RECHAZADA.</h3>`
                 }
                 
-                ${comentariosAdmin 
+                ${comentariosAdmin
                     ? `<p><strong>Comentarios del organizador:</strong></p>
                        <blockquote style="border-left: 4px solid #ccc; padding-left: 15px; margin-left: 15px; font-style: italic;">
                            ${comentariosAdmin}
@@ -385,7 +385,7 @@ const EmailService = {
 
     enviarCreacionUsuarioPorAdmin: async (destinatario, nombre, rol, contraseñaTemporal, creadorNombre, empresaNombre = null) => {
         const empresaInfo = empresaNombre ? ` en **${empresaNombre}**` : '';
-        
+
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: destinatario,
@@ -407,7 +407,7 @@ const EmailService = {
                 </a>
             `
         };
-        
+
         try {
             await transporter.sendMail(mailOptions);
             console.log('Correo de creación de usuario enviado a:', destinatario);
@@ -488,7 +488,7 @@ const EmailService = {
         nombreActividad,
         aceptada
     ) => {
-        const esAceptada = aceptada === "aceptado";    
+        const esAceptada = aceptada === "aceptado";
         const estadoTexto = esAceptada ? 'ACEPTADO' : 'RECHAZADO';
         const colorEstado = esAceptada ? '#28a745' : '#dc3545';
 
@@ -512,8 +512,33 @@ const EmailService = {
         } catch (error) {
             console.error('Error enviando correo de respuesta de ponente:', error);
         }
-    }
+    },
 
+    enviarEncuesta: async (correoDestinatario, nombreDestinatario, urlEncuesta) => {
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: correoDestinatario,
+            subject: 'Completa nuestra encuesta',
+            html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Hola ${nombreDestinatario},</h2>
+        <p>Nos gustaría conocer tu opinión. Por favor completa la siguiente encuesta:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${urlEncuesta}" 
+             style="background-color: #007bff; color: white; padding: 12px 30px; 
+                    text-decoration: none; border-radius: 5px; display: inline-block;">
+            Completar Encuesta
+          </a>
+        </div>
+        <p>O copia y pega este enlace en tu navegador:</p>
+        <p style="word-break: break-all; color: #666;">${urlEncuesta}</p>
+        <p>Gracias por tu participación.</p>
+      </div>
+    `
+        };
+
+        return await this.transporter.sendMail(mailOptions);
+    }
 
 };
 

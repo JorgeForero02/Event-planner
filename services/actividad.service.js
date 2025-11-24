@@ -1,5 +1,6 @@
 const { Actividad, Evento, Lugar, LugarActividad, PonenteActividad, Ponente, Usuario } = require('../models');
 const notificacionService = require('./notificacion.service');
+const EncuestaService = require('./encuesta.service');
 
 class ActividadService {
 
@@ -160,6 +161,52 @@ class ActividadService {
             }
         });
         return actualizaciones;
+    }
+
+    async enviarEncuestasPreActividad(actividadId, transaction) {
+        try {
+            const encuestas = await EncuestaService.obtenerEncuestasActivas({
+                id_actividad: actividadId,
+                tipo_encuesta: 'pre_actividad'
+            });
+
+            const resultados = [];
+            for (const encuesta of encuestas) {
+                const envios = await EncuestaService.enviarEncuestasMasivas(
+                    encuesta.id,
+                    transaction
+                );
+                resultados.push({ encuesta, envios });
+            }
+
+            return resultados;
+        } catch (error) {
+            console.error('Error al enviar encuestas pre-actividad:', error);
+            throw error;
+        }
+    }
+
+    async enviarEncuestasPostActividad(actividadId, transaction) {
+        try {
+            const encuestas = await EncuestaService.obtenerEncuestasActivas({
+                id_actividad: actividadId,
+                tipo_encuesta: 'post_actividad'
+            });
+
+            const resultados = [];
+            for (const encuesta of encuestas) {
+                const envios = await EncuestaService.enviarEncuestasMasivas(
+                    encuesta.id,
+                    transaction
+                );
+                resultados.push({ encuesta, envios });
+            }
+
+            return resultados;
+        } catch (error) {
+            console.error('Error al enviar encuestas post-actividad:', error);
+            throw error;
+        }
     }
 }
 
