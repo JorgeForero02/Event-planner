@@ -33,6 +33,10 @@ const Lugar = sequelize.define('Lugar', {
       }
     }
   },
+  capacidad: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   descripcion: {
     type: DataTypes.TEXT,
     allowNull: true

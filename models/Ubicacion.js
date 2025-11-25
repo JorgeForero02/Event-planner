@@ -23,10 +23,6 @@ const Ubicacion = sequelize.define('Ubicacion', {
     type: DataTypes.STRING(200),
     allowNull: false
   },
-  capacidad: {
-    type: DataTypes.INTEGER,
-    allowNull: true
-  },
   descripcion: {
     type: DataTypes.TEXT,
     allowNull: true
