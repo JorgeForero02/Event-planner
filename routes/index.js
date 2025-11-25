@@ -15,5 +15,5 @@ router.use('/inscripciones', require('./inscripcion.routes'));
 router.use('/asistencias', require('./asistencia.routes'));
 router.use('/ponente-actividad', require('./ponenteActividad.routes'));
 router.use('/notificaciones', require('./notificaciones.routes'));
-
+router.use('/encuestas', require('./encuesta.routes'));
 module.exports = router;
