@@ -1,7 +1,7 @@
 const EncuestaService = require('../services/encuesta.service');
 const AuditoriaService = require('../services/auditoriaService');
 const EmailService = require('../services/emailService');
-const { Asistente } = require('../models/asistente.model');
+const { Asistente } = require('../models');
 const { MENSAJES, CODIGOS_HTTP } = require('../constants/encuesta.constants');
 
 class EncuestaController {
