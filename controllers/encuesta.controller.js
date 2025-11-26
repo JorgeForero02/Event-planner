@@ -1,7 +1,7 @@
 const EncuestaService = require('../services/encuesta.service');
 const AuditoriaService = require('../services/auditoriaService');
 const EmailService = require('../services/emailService');
-const { Asistente } = require('../models');
+const { Asistente, Evento, Actividad } = require('../models');
 const { MENSAJES, CODIGOS_HTTP } = require('../constants/encuesta.constants');
 
 class EncuestaController {
@@ -49,6 +49,34 @@ class EncuestaController {
     async obtenerEncuestas(req, res) {
         try {
             const { evento_id, actividad_id } = req.query;
+            const { adminEmpresa } = req;
+
+            if (adminEmpresa) {
+                const idEmpresaUsuario = adminEmpresa.id_empresa;
+
+                if (evento_id) {
+                    const evento = await Evento.findByPk(evento_id, { attributes: ['id_empresa'] });
+                    if (!evento || evento.id_empresa !== idEmpresaUsuario) {
+                        return res.status(403).json({
+                            success: false,
+                            message: 'Acceso denegado. El evento no pertenece a tu empresa.'
+                        });
+                    }
+                }
+
+                if (actividad_id) {
+                    const actividad = await Actividad.findByPk(actividad_id, {
+                        include: { model: Evento, as: 'evento', attributes: ['id_empresa'] }
+                    });
+                    if (!actividad || !actividad.evento || actividad.evento.id_empresa !== idEmpresaUsuario) {
+                        return res.status(403).json({
+                            success: false,
+                            message: 'Acceso denegado. La actividad no pertenece a un evento de tu empresa.'
+                        });
+                    }
+                }
+            }
+
             let encuestas;
 
             if (evento_id) {
