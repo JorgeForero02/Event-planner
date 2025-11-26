@@ -11,7 +11,6 @@ class EncuestaController {
             const usuario = req.usuario;
             const datosEncuesta = req.body;
 
-            // Validar que tenga al menos un evento o actividad
             if (!datosEncuesta.id_evento && !datosEncuesta.id_actividad) {
                 await transaction.rollback();
                 return res.status(CODIGOS_HTTP.BAD_REQUEST).json({
@@ -197,7 +196,6 @@ class EncuestaController {
                 transaction
             );
 
-            // Enviar emails con las URLs personalizadas
             transaction.afterCommit(async () => {
                 try {
                     for (const envio of envios) {
@@ -235,44 +233,42 @@ class EncuestaController {
 
     async completarEncuesta(req, res) {
         try {
-            const usuario = req.usuario;
-            const { encuestaId } = req.params;
+            const { id_encuesta, id_asistente } = req.body;
 
-            const asistente = await Asistente.findOne({ where: { id_usuario: usuario.id } });
-            if (!asistente) {
-                return res.status(404).json({
+            if (!id_encuesta || !id_asistente) {
+                return res.status(CODIGOS_HTTP.BAD_REQUEST).json({
                     success: false,
-                    message: "Usuario no es asistente"
+                    message: 'id_encuesta y id_asistente son requeridos'
                 });
             }
 
-            const respuesta = await EncuestaService.marcarComoCompletada(encuestaId, asistente.id);
+            const respuesta = await EncuestaService.marcarComoCompletada(id_encuesta, id_asistente);
 
             return res.json({
                 success: true,
-                message: "Encuesta completada correctamente",
+                message: MENSAJES.COMPLETADA,
                 data: respuesta
             });
         } catch (error) {
             console.error('Error al completar encuesta:', error);
 
             if (error.message === 'No registrado en esta encuesta') {
-                return res.status(404).json({
+                return res.status(CODIGOS_HTTP.NOT_FOUND).json({
                     success: false,
-                    message: error.message
+                    message: MENSAJES.TOKEN_INVALIDO
                 });
             }
 
             if (error.message === 'Encuesta ya completada') {
-                return res.status(409).json({
+                return res.status(CODIGOS_HTTP.CONFLICT).json({
                     success: false,
-                    message: "Ya completaste esta encuesta"
+                    message: MENSAJES.YA_COMPLETADA
                 });
             }
 
-            return res.status(500).json({
+            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
                 success: false,
-                message: "Error al completar encuesta",
+                message: MENSAJES.ERROR_COMPLETAR,
                 error: error.message
             });
         }

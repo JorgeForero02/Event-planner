@@ -1,15 +1,10 @@
 const { Encuesta, RespuestaEncuesta, Evento, Actividad, Inscripcion, Asistente, Usuario } = require('../models');
 const { Op } = require('sequelize');
 const { ESTADOS_ENCUESTA, ESTADOS_RESPUESTA } = require('../constants/encuesta.constants');
-const crypto = require('crypto');
 
 class EncuestaService {
     crearTransaccion() {
         return Encuesta.sequelize.transaction();
-    }
-
-    generarToken() {
-        return crypto.randomBytes(32).toString('hex');
     }
 
     construirURLConParametros(urlBase, parametros) {
@@ -60,16 +55,8 @@ class EncuestaService {
     async buscarPorId(encuestaId) {
         return await Encuesta.findByPk(encuestaId, {
             include: [
-                {
-                    model: Evento,
-                    as: 'evento',
-                    attributes: ['id', 'titulo', 'fecha_inicio', 'fecha_fin']
-                },
-                {
-                    model: Actividad,
-                    as: 'actividad',
-                    attributes: ['id_actividad', 'titulo', 'fecha_actividad', 'hora_inicio', 'hora_fin']
-                }
+                { model: Evento, as: 'evento', attributes: ['id', 'titulo', 'fecha_inicio', 'fecha_fin'] },
+                { model: Actividad, as: 'actividad', attributes: ['id_actividad', 'titulo', 'fecha_actividad', 'hora_inicio', 'hora_fin'] }
             ]
         });
     }
@@ -78,11 +65,7 @@ class EncuestaService {
         return await Encuesta.findAll({
             where: { id_evento: eventoId },
             include: [
-                {
-                    model: RespuestaEncuesta,
-                    as: 'respuestas',
-                    attributes: ['id', 'estado', 'fecha_envio', 'fecha_completado']
-                }
+                { model: RespuestaEncuesta, as: 'respuestas', attributes: ['id', 'estado', 'fecha_envio', 'fecha_completado'] }
             ],
             order: [['fecha_creacion', 'DESC']]
         });
@@ -92,11 +75,7 @@ class EncuestaService {
         return await Encuesta.findAll({
             where: { id_actividad: actividadId },
             include: [
-                {
-                    model: RespuestaEncuesta,
-                    as: 'respuestas',
-                    attributes: ['id', 'estado', 'fecha_envio', 'fecha_completado']
-                }
+                { model: RespuestaEncuesta, as: 'respuestas', attributes: ['id', 'estado', 'fecha_envio', 'fecha_completado'] }
             ],
             order: [['fecha_creacion', 'DESC']]
         });
@@ -139,29 +118,20 @@ class EncuestaService {
         if (yaEnviada) {
             return {
                 respuesta: yaEnviada,
-                url_personalizada: this.construirURLConParametros(encuesta.url_google_form, {
-                    'entry.asistente_id': asistenteId,
-                    'entry.token': yaEnviada.token_acceso
-                })
+                url_personalizada: encuesta.url_google_form
             };
         }
-
-        const token = this.generarToken();
 
         const respuesta = await RespuestaEncuesta.create({
             id_encuesta: encuestaId,
             id_asistente: asistenteId,
-            token_acceso: token,
             estado: ESTADOS_RESPUESTA.PENDIENTE,
             fecha_envio: new Date()
         }, { transaction });
 
         return {
             respuesta,
-            url_personalizada: this.construirURLConParametros(encuesta.url_google_form, {
-                'entry.asistente_id': asistenteId,
-                'entry.token': token
-            })
+            url_personalizada: encuesta.url_google_form
         };
     }
 
@@ -210,8 +180,7 @@ class EncuestaService {
 
             envios.push({
                 asistente,
-                url: resultado.url_personalizada,
-                token: resultado.respuesta.token_acceso
+                url: resultado.url_personalizada
             });
         }
 
