@@ -537,7 +537,7 @@ const EmailService = {
     `
         };
 
-        return await this.transporter.sendMail(mailOptions);
+        return await transporter.sendMail(mailOptions);
     }
 
 };

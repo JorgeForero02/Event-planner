@@ -137,7 +137,13 @@ class EncuestaService {
         });
 
         if (yaEnviada) {
-            return yaEnviada;
+            return {
+                respuesta: yaEnviada,
+                url_personalizada: this.construirURLConParametros(encuesta.url_google_form, {
+                    'entry.asistente_id': asistenteId,
+                    'entry.token': yaEnviada.token_acceso
+                })
+            };
         }
 
         const token = this.generarToken();
@@ -265,7 +271,7 @@ class EncuestaService {
         const respuestas = await RespuestaEncuesta.findAll({
             where: { id_encuesta: encuestaId },
             include: [{
-                model: Inscripcion,
+                model: Asistente,
                 as: 'asistente',
                 include: [{
                     model: Usuario,
