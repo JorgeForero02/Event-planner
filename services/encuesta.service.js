@@ -218,21 +218,24 @@ class EncuestaService {
         return envios;
     }
 
-    async marcarComoCompletada(token) {
+    async marcarComoCompletada(encuestaId, asistenteId) {
         const respuesta = await RespuestaEncuesta.findOne({
-            where: { token_acceso: token }
+            where: {
+                id_encuesta: encuestaId,
+                id_asistente: asistenteId
+            }
         });
 
         if (!respuesta) {
-            throw new Error('Token inválido');
+            throw new Error('No registrado en esta encuesta');
         }
 
-        if (respuesta.estado === ESTADOS_RESPUESTA.COMPLETADA) {
-            throw new Error('La encuesta ya fue completada');
+        if (respuesta.estado === 'completada') {
+            throw new Error('Encuesta ya completada');
         }
 
         await respuesta.update({
-            estado: ESTADOS_RESPUESTA.COMPLETADA,
+            estado: 'completada',
             fecha_completado: new Date()
         });
 

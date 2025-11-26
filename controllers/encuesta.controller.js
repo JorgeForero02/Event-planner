@@ -1,6 +1,7 @@
 const EncuestaService = require('../services/encuesta.service');
 const AuditoriaService = require('../services/auditoriaService');
 const EmailService = require('../services/emailService');
+const { Asistente } = require('../models/asistente.model');
 const { MENSAJES, CODIGOS_HTTP } = require('../constants/encuesta.constants');
 
 class EncuestaController {
@@ -245,27 +246,7 @@ class EncuestaController {
                 });
             }
 
-            const respuesta = await RespuestaEncuesta.findOne({
-                where: { id_encuesta: encuestaId, id_asistente: asistente.id }
-            });
-            if (!respuesta) {
-                return res.status(404).json({
-                    success: false,
-                    message: "No estás registrado en esta encuesta"
-                });
-            }
-
-            if (respuesta.estado === 'completada') {
-                return res.status(409).json({
-                    success: false,
-                    message: "Ya completaste esta encuesta"
-                });
-            }
-
-            await respuesta.update({
-                estado: 'completada',
-                fecha_completado: new Date()
-            });
+            const respuesta = await EncuestaService.marcarComoCompletada(encuestaId, asistente.id);
 
             return res.json({
                 success: true,
@@ -274,6 +255,21 @@ class EncuestaController {
             });
         } catch (error) {
             console.error('Error al completar encuesta:', error);
+
+            if (error.message === 'No registrado en esta encuesta') {
+                return res.status(404).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+
+            if (error.message === 'Encuesta ya completada') {
+                return res.status(409).json({
+                    success: false,
+                    message: "Ya completaste esta encuesta"
+                });
+            }
+
             return res.status(500).json({
                 success: false,
                 message: "Error al completar encuesta",
@@ -281,7 +277,6 @@ class EncuestaController {
             });
         }
     }
-
 
     async obtenerEstadisticas(req, res) {
         try {
