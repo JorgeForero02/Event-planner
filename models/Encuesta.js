@@ -84,7 +84,9 @@ const Encuesta = sequelize.define('Encuesta', {
         references: {
             model: 'Evento',
             key: 'id'
-        }
+        },
+        onDelete: 'RESTRICT',  
+        onUpdate: 'CASCADE'     
     },
     id_actividad: {
         type: DataTypes.INTEGER,
@@ -92,7 +94,9 @@ const Encuesta = sequelize.define('Encuesta', {
         references: {
             model: 'Actividad',
             key: 'id_actividad'
-        }
+        },
+        onDelete: 'RESTRICT',  
+        onUpdate: 'CASCADE'    
     },
     obligatoria: {
         type: DataTypes.BOOLEAN,

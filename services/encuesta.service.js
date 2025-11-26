@@ -188,7 +188,7 @@ class EncuestaService {
             });
 
             asistentes = inscripciones.map(i => ({
-                id: i.asistente.id,
+                id: i.asistente.id_asistente,
                 nombre: i.asistente.usuario.nombre,
                 correo: i.asistente.usuario.correo
             }));

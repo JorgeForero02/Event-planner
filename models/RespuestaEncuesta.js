@@ -20,7 +20,7 @@ const RespuestaEncuesta = sequelize.define('RespuestaEncuesta', {
         allowNull: false,
         references: {
             model: 'Asistente',
-            key: 'id'
+            key: 'id_asistente'
         }
     },
     fecha_envio: {
