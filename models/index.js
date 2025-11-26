@@ -163,7 +163,6 @@ RespuestaEncuesta.belongsTo(Encuesta, { foreignKey: 'id_encuesta', as: 'encuesta
 RespuestaEncuesta.belongsTo(Asistente, { foreignKey: 'id_asistente', as: 'asistente' });
 Asistente.hasMany(RespuestaEncuesta, { foreignKey: 'id_asistente', as: 'respuestasEncuesta' });
 Encuesta.hasMany(RespuestaEncuesta, { foreignKey: 'id_encuesta', as: 'respuestas' });
-Asistente.hasMany(RespuestaEncuesta, { foreignKey: 'id_asistente', as: 'respuestasEncuesta' });
 
 const db = {
   sequelize,
