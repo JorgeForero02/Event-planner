@@ -52,6 +52,7 @@ router.get(
 
 router.post(
     '/completar',
+    auth,
     EncuestaController.completarEncuesta
 );
 

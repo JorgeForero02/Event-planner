@@ -234,46 +234,54 @@ class EncuestaController {
 
     async completarEncuesta(req, res) {
         try {
-            const { token } = req.body;
+            const usuario = req.usuario;
+            const { encuestaId } = req.params;
 
-            if (!token) {
-                return res.status(CODIGOS_HTTP.BAD_REQUEST).json({
+            const asistente = await Asistente.findOne({ where: { id_usuario: usuario.id } });
+            if (!asistente) {
+                return res.status(404).json({
                     success: false,
-                    message: 'Token requerido'
+                    message: "Usuario no es asistente"
                 });
             }
 
-            const respuesta = await EncuestaService.marcarComoCompletada(token);
+            const respuesta = await RespuestaEncuesta.findOne({
+                where: { id_encuesta: encuestaId, id_asistente: asistente.id }
+            });
+            if (!respuesta) {
+                return res.status(404).json({
+                    success: false,
+                    message: "No estás registrado en esta encuesta"
+                });
+            }
+
+            if (respuesta.estado === 'completada') {
+                return res.status(409).json({
+                    success: false,
+                    message: "Ya completaste esta encuesta"
+                });
+            }
+
+            await respuesta.update({
+                estado: 'completada',
+                fecha_completado: new Date()
+            });
 
             return res.json({
                 success: true,
-                message: MENSAJES.COMPLETADA,
+                message: "Encuesta completada correctamente",
                 data: respuesta
             });
         } catch (error) {
             console.error('Error al completar encuesta:', error);
-
-            if (error.message === 'Token inválido') {
-                return res.status(CODIGOS_HTTP.NOT_FOUND).json({
-                    success: false,
-                    message: MENSAJES.TOKEN_INVALIDO
-                });
-            }
-
-            if (error.message === 'La encuesta ya fue completada') {
-                return res.status(CODIGOS_HTTP.CONFLICT).json({
-                    success: false,
-                    message: MENSAJES.YA_COMPLETADA
-                });
-            }
-
-            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
+            return res.status(500).json({
                 success: false,
-                message: MENSAJES.ERROR_COMPLETAR,
+                message: "Error al completar encuesta",
                 error: error.message
             });
         }
     }
+
 
     async obtenerEstadisticas(req, res) {
         try {
