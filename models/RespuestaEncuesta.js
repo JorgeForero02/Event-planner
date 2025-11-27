@@ -20,7 +20,7 @@ const RespuestaEncuesta = sequelize.define('RespuestaEncuesta', {
         allowNull: false,
         references: {
             model: 'Asistente',
-            key: 'id'
+            key: 'id_asistente'
         }
     },
     fecha_envio: {
@@ -45,8 +45,8 @@ const RespuestaEncuesta = sequelize.define('RespuestaEncuesta', {
     },
     token_acceso: {
         type: DataTypes.STRING(100),
-        allowNull: false,
-        unique: true,
+        allowNull: true,
+        unique: false,
         validate: {
             len: {
                 args: [20, 100],

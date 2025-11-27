@@ -1,6 +1,7 @@
 const EncuestaService = require('../services/encuesta.service');
 const AuditoriaService = require('../services/auditoriaService');
 const EmailService = require('../services/emailService');
+const { Asistente, Evento, Actividad } = require('../models');
 const { MENSAJES, CODIGOS_HTTP } = require('../constants/encuesta.constants');
 
 class EncuestaController {
@@ -10,7 +11,6 @@ class EncuestaController {
             const usuario = req.usuario;
             const datosEncuesta = req.body;
 
-            // Validar que tenga al menos un evento o actividad
             if (!datosEncuesta.id_evento && !datosEncuesta.id_actividad) {
                 await transaction.rollback();
                 return res.status(CODIGOS_HTTP.BAD_REQUEST).json({
@@ -49,6 +49,34 @@ class EncuestaController {
     async obtenerEncuestas(req, res) {
         try {
             const { evento_id, actividad_id } = req.query;
+            const { adminEmpresa } = req;
+
+            if (adminEmpresa) {
+                const idEmpresaUsuario = adminEmpresa.id_empresa;
+
+                if (evento_id) {
+                    const evento = await Evento.findByPk(evento_id, { attributes: ['id_empresa'] });
+                    if (!evento || evento.id_empresa !== idEmpresaUsuario) {
+                        return res.status(403).json({
+                            success: false,
+                            message: 'Acceso denegado. El evento no pertenece a tu empresa.'
+                        });
+                    }
+                }
+
+                if (actividad_id) {
+                    const actividad = await Actividad.findByPk(actividad_id, {
+                        include: { model: Evento, as: 'evento', attributes: ['id_empresa'] }
+                    });
+                    if (!actividad || !actividad.evento || actividad.evento.id_empresa !== idEmpresaUsuario) {
+                        return res.status(403).json({
+                            success: false,
+                            message: 'Acceso denegado. La actividad no pertenece a un evento de tu empresa.'
+                        });
+                    }
+                }
+            }
+
             let encuestas;
 
             if (evento_id) {
@@ -196,7 +224,6 @@ class EncuestaController {
                 transaction
             );
 
-            // Enviar emails con las URLs personalizadas
             transaction.afterCommit(async () => {
                 try {
                     for (const envio of envios) {
@@ -234,16 +261,16 @@ class EncuestaController {
 
     async completarEncuesta(req, res) {
         try {
-            const { token } = req.body;
+            const { id_encuesta, id_asistente } = req.body;
 
-            if (!token) {
+            if (!id_encuesta || !id_asistente) {
                 return res.status(CODIGOS_HTTP.BAD_REQUEST).json({
                     success: false,
-                    message: 'Token requerido'
+                    message: 'id_encuesta y id_asistente son requeridos'
                 });
             }
 
-            const respuesta = await EncuestaService.marcarComoCompletada(token);
+            const respuesta = await EncuestaService.marcarComoCompletada(id_encuesta, id_asistente);
 
             return res.json({
                 success: true,
@@ -253,14 +280,14 @@ class EncuestaController {
         } catch (error) {
             console.error('Error al completar encuesta:', error);
 
-            if (error.message === 'Token inválido') {
+            if (error.message === 'No registrado en esta encuesta') {
                 return res.status(CODIGOS_HTTP.NOT_FOUND).json({
                     success: false,
                     message: MENSAJES.TOKEN_INVALIDO
                 });
             }
 
-            if (error.message === 'La encuesta ya fue completada') {
+            if (error.message === 'Encuesta ya completada') {
                 return res.status(CODIGOS_HTTP.CONFLICT).json({
                     success: false,
                     message: MENSAJES.YA_COMPLETADA
