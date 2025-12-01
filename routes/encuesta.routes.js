@@ -18,7 +18,6 @@ router.post(
 router.get(
     '/',
     auth,
-    validarPermisoLecturaEncuestas,
     EncuestaController.obtenerEncuestas
 );
 
