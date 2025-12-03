@@ -100,7 +100,7 @@ class EncuestaController {
                 }
 
                 const actividadesAsignadas = await PonenteActividad.findAll({
-                    where: { id_ponente: ponente.id_ponente },
+                    where: { id_ponente: ponente.id_ponente, estado: 'aceptado' },
                     attributes: ['id_actividad']
                 });
 
