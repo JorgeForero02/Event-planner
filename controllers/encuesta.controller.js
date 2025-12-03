@@ -92,7 +92,7 @@ class EncuestaController {
                     where: { id_usuario: usuario.id }
                 });
 
-                if (ponente_id != ponente.id) {
+                if (ponente_id != ponente.id_ponente) {
                     return res.status(403).json({
                         success: false,
                         message: 'Acceso denegado. No puedes acceder a encuestas de otro ponente.'
