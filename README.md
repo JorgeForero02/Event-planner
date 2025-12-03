@@ -1,12 +1,6 @@
-# README para Event Planner API
-
-Basándome en el análisis del repositorio, aquí está un README apropiado en español y formato markdown:
-
----
-
 # Event Planner API
 
-API REST para sistema de gestión de eventos desarrollada con Node.js, Express y MySQL. [1](#0-0) 
+API REST para sistema de gestión de eventos desarrollada con Node.js, Express y MySQL. 
 
 ## Descripción
 
@@ -14,26 +8,26 @@ Sistema completo de gestión de eventos que permite administrar empresas, evento
 
 ## Características
 
-- **Autenticación y Autorización**: Sistema JWT con tokens de acceso y renovación [2](#0-1) 
+- **Autenticación y Autorización**: Sistema JWT con tokens de acceso y renovación
 - **Gestión de Eventos**: Creación y administración de eventos y actividades
-- **Sistema de Roles**: Soporte para administrador, gerente, organizador, ponente y asistente [3](#0-2) 
+- **Sistema de Roles**: Soporte para administrador, gerente, organizador, ponente y asistente 
 - **Inscripciones y Asistencias**: Control de participantes en eventos
-- **Notificaciones**: Sistema de notificaciones para usuarios [4](#0-3) 
-- **Encuestas**: Gestión de encuestas y respuestas [5](#0-4) 
-- **Auditoría**: Registro de acciones del sistema [6](#0-5) 
-- **Recordatorios Automatizados**: Sistema de cron jobs para envío de recordatorios [7](#0-6) 
-- **Documentación Swagger**: Documentación interactiva de la API [8](#0-7) 
+- **Notificaciones**: Sistema de notificaciones para usuarios 
+- **Encuestas**: Gestión de encuestas y respuestas 
+- **Auditoría**: Registro de acciones del sistema 
+- **Recordatorios Automatizados**: Sistema de cron jobs para envío de recordatorios 
+- **Documentación Swagger**: Documentación interactiva de la API  
 
 ## Tecnologías
 
 - **Node.js** & **Express**: Framework backend
-- **Sequelize**: ORM para MySQL [9](#0-8) 
-- **MySQL**: Base de datos [10](#0-9) 
-- **JWT**: Autenticación [11](#0-10) 
-- **Bcrypt**: Encriptación de contraseñas [12](#0-11) 
-- **Nodemailer**: Envío de correos electrónicos [13](#0-12) 
-- **Node-cron**: Tareas programadas [14](#0-13) 
-- **Helmet**: Seguridad HTTP [16](#0-15) 
+- **Sequelize**: ORM para MySQL 
+- **MySQL**: Base de datos 
+- **JWT**: Autenticación 
+- **Bcrypt**: Encriptación de contraseñas 
+- **Nodemailer**: Envío de correos electrónicos
+- **Node-cron**: Tareas programadas 
+- **Helmet**: Seguridad HTTP 
 
 ## Requisitos Previos
 
@@ -81,49 +75,49 @@ JWT_REFRESH_EXPIRE=7d
 
 # Email
 EMAIL_USER=tu_email@gmail.com
-``` [17](#0-16) 
+````
 
 4. **Sincronizar base de datos**
 
-La base de datos se sincronizará automáticamente al iniciar el servidor en modo desarrollo. [18](#0-17) 
+La base de datos se sincronizará automáticamente al iniciar el servidor en modo desarrollo. 
 
 5. **Crear usuario administrador**
 
 ```bash
 node crear_admin.js
-```
+````
 
 Este script creará un usuario administrador con las siguientes credenciales por defecto:
 - Correo: `admin@sistema.com`
-- Contraseña: `Admin123!` [19](#0-18) 
+- Contraseña: `Admin123!` 
 
 ## Uso
 
 ### Modo Desarrollo
 ```bash
 npm run dev
-``` [20](#0-19) 
+````
 
 ### Modo Producción
-```bash
+````bash
 npm start
-``` [21](#0-20) 
+````
 
-El servidor estará disponible en: `http://localhost:3000` [22](#0-21) 
+El servidor estará disponible en: `http://localhost:3000` 
 
 ## Documentación de la API
 
 Una vez iniciado el servidor, la documentación interactiva de Swagger estará disponible en:
 
-```
+````bash
 http://localhost:3000/api-docs
-``` [8](#0-7) 
+````
 
 También puedes acceder a la especificación JSON en: `http://localhost:3000/api-docs.json`
 
 ## Endpoints Principales
 
-Todos los endpoints están bajo el prefijo `/api`: [23](#0-22) 
+Todos los endpoints están bajo el prefijo `/api`: 
 
 - `/api/auth` - Autenticación (login, registro, refresh token)
 - `/api/empresas` - Gestión de empresas
@@ -139,11 +133,11 @@ Todos los endpoints están bajo el prefijo `/api`: [23](#0-22)
 - `/api/gestion-usuarios` - Administración de usuarios
 - `/api/auditoria` - Logs de auditoría
 - `/api/paises` - Catálogo de países
-- `/api/ciudades` - Catálogo de ciudades [24](#0-23) 
+- `/api/ciudades` - Catálogo de ciudades 
 
 ## Estructura del Proyecto
 
-```
+````Bash
 Event-planner/
 ├── config/          # Configuraciones (DB, Swagger)
 ├── constants/       # Constantes del sistema
@@ -159,7 +153,7 @@ Event-planner/
 ├── crear_admin.js # Script de creación de admin
 ├── package.json   # Dependencias
 └── server.js      # Punto de entrada
-```
+````
 
 ## Roles de Usuario
 
@@ -169,7 +163,7 @@ El sistema soporta los siguientes roles:
 2. **Gerente**: Gestión de empresa específica
 3. **Organizador**: Creación y gestión de eventos
 4. **Ponente**: Participación como expositor
-5. **Asistente**: Inscripción y participación en eventos [3](#0-2) 
+5. **Asistente**: Inscripción y participación en eventos 
 
 ## Seguridad
 
