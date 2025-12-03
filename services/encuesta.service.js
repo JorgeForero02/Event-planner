@@ -81,6 +81,42 @@ class EncuestaService {
         });
     }
 
+    async obtenerPorPonente(listaActividadId) {
+        return await Encuesta.findAll({
+            where: {
+                id_actividad: { [Op.in]: listaActividadId }
+            },
+            include: [
+                { model: RespuestaEncuesta, as: 'respuestas', attributes: ['id', 'estado', 'fecha_envio', 'fecha_completado'] }
+            ],
+            order: [['fecha_creacion', 'DESC']]
+        });
+    }
+
+    async obtenerPorPonenteEvento(listaActividadId, eventoId) {
+        return await Encuesta.findAll({
+            where: {
+                id_actividad: { [Op.in]: listaActividadId },
+                id_evento: eventoId
+            },
+            include: [
+                { model: RespuestaEncuesta, as: 'respuestas', attributes: ['id', 'estado', 'fecha_envio', 'fecha_completado'] }
+            ],
+            order: [['fecha_creacion', 'DESC']]
+        });
+    }
+    async obtenerPorPonenteActividad(actividadId) {
+        return await Encuesta.findAll({
+            where: {
+                id_actividad: actividadId
+            },
+            include: [
+                { model: RespuestaEncuesta, as: 'respuestas', attributes: ['id', 'estado', 'fecha_envio', 'fecha_completado'] }
+            ],
+            order: [['fecha_creacion', 'DESC']]
+        });
+    }
+
     async obtenerEncuestasActivas(filtros = {}) {
         const where = { estado: ESTADOS_ENCUESTA.ACTIVA };
         const fechaHoy = new Date().toISOString().split('T')[0];

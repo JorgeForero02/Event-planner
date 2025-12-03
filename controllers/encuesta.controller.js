@@ -1,7 +1,7 @@
 const EncuestaService = require('../services/encuesta.service');
 const AuditoriaService = require('../services/auditoriaService');
 const EmailService = require('../services/emailService');
-const { Asistente, Evento, Actividad } = require('../models');
+const { Asistente, Evento, Actividad, Ponente, PonenteActividad } = require('../models');
 const { MENSAJES, CODIGOS_HTTP } = require('../constants/encuesta.constants');
 
 class EncuestaController {
@@ -48,8 +48,11 @@ class EncuestaController {
 
     async obtenerEncuestas(req, res) {
         try {
-            const { evento_id, actividad_id } = req.query;
+            const { evento_id, actividad_id, ponente_id } = req.query;
             const { adminEmpresa } = req;
+            const usuario = req.usuario;
+
+            console.log('Usuario en obtenerEncuestas:', usuario);
 
             if (adminEmpresa) {
                 const idEmpresaUsuario = adminEmpresa.id_empresa;
@@ -75,6 +78,61 @@ class EncuestaController {
                         });
                     }
                 }
+            }
+
+            if (ponente_id) {
+                if (usuario.rol !== 'Ponente' && usuario.rol !== 'ponente') {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Acceso denegado. Solo ponentes pueden acceder a encuestas por ponente_id.'
+                    });
+                }
+
+                const ponente = await Ponente.findOne({
+                    where: { id_usuario: usuario.id }
+                });
+
+                if (ponente_id != ponente.id) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Acceso denegado. No puedes acceder a encuestas de otro ponente.'
+                    });
+                }
+
+                const actividadesAsignadas = await PonenteActividad.findAll({
+                    where: { id_ponente: ponente.id_ponente },
+                    attributes: ['id_actividad']
+                });
+
+                console.log('Ponente encontrado:', ponente);
+
+                const actividadesIds = actividadesAsignadas.map(pa => pa.id_actividad);
+
+                let encuestas;
+
+                if (evento_id) {
+                    encuestas = await EncuestaService.obtenerPorPonenteEvento(actividadesIds, evento_id);
+                } else if (actividad_id) {
+                    if (actividadesIds.includes(actividad_id)) {
+                        encuestas = await EncuestaService.obtenerPorPonenteActividad(actividad_id);
+                    } else {
+                        return res.status(CODIGOS_HTTP.BAD_REQUEST).json({
+                            success: false,
+                            message: 'Acceso denegado. La actividad no está asignada al ponente.'
+                        });
+                    }
+                }
+                else {
+                    encuestas = await EncuestaService.obtenerPorPonente(actividadesIds);
+                }
+
+                return res.json({
+                    success: true,
+                    message: MENSAJES.LISTA_OBTENIDA,
+                    total: encuestas.length,
+                    data: encuestas
+                });
+
             }
 
             let encuestas;
