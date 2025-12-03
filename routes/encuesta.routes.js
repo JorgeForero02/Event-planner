@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const EncuestaController = require('../controllers/encuesta.controller');
-const { auth, isAdminGerenteOrOrganizador } = require('../middlewares/auth');
+const { auth, isAdminGerenteOrOrganizador, isAdminGerenteOrganizadorOrPonente } = require('../middlewares/auth');
 const { 
     validarPermisoLecturaEncuestas, 
     validarPermiso,
@@ -10,7 +10,7 @@ const {
 router.post(
     '/',
     auth,
-    isAdminGerenteOrOrganizador,
+    isAdminGerenteOrganizadorOrPonente,
     validarPermisoCreacionEncuesta,
     EncuestaController.crearEncuesta
 );
@@ -31,7 +31,7 @@ router.get(
 router.put(
     '/:encuestaId',
     auth,
-    isAdminGerenteOrOrganizador,
+    isAdminGerenteOrganizadorOrPonente,
     validarPermiso,
     EncuestaController.actualizarEncuesta
 );
@@ -39,7 +39,7 @@ router.put(
 router.delete(
     '/:encuestaId',
     auth,
-    isAdminGerenteOrOrganizador,
+    isAdminGerenteOrganizadorOrPonente,
     validarPermiso,
     EncuestaController.eliminarEncuesta
 );
@@ -47,7 +47,7 @@ router.delete(
 router.post(
     '/:encuestaId/enviar',
     auth,
-    isAdminGerenteOrOrganizador,
+    isAdminGerenteOrganizadorOrPonente,
     validarPermiso,
     EncuestaController.enviarEncuesta
 );
@@ -55,7 +55,7 @@ router.post(
 router.get(
     '/:encuestaId/estadisticas',
     auth,
-    isAdminGerenteOrOrganizador,
+    isAdminGerenteOrganizadorOrPonente,
     validarPermiso,
     EncuestaController.obtenerEstadisticas
 );
