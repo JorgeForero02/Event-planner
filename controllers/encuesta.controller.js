@@ -104,16 +104,17 @@ class EncuestaController {
                     attributes: ['id_actividad']
                 });
 
-                console.log('Ponente encontrado:', ponente);
-
                 const actividadesIds = actividadesAsignadas.map(pa => pa.id_actividad);
 
+                console.log('Actividades asignadas al ponente:', actividadesIds);
+                const contieneActividadId = actividad_id ? actividadesIds.includes(parseInt(actividad_id)) : true;
+                console.log('¿Contiene actividad_id solicitada?', contieneActividadId);
                 let encuestas;
 
                 if (evento_id) {
                     encuestas = await EncuestaService.obtenerPorPonenteEvento(actividadesIds, evento_id);
                 } else if (actividad_id) {
-                    if (actividadesIds.includes(actividad_id)) {
+                    if (actividadesIds.includes(parseInt(actividad_id))) {
                         encuestas = await EncuestaService.obtenerPorPonenteActividad(actividad_id);
                     } else {
                         return res.status(CODIGOS_HTTP.BAD_REQUEST).json({
