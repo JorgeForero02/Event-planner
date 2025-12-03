@@ -47,7 +47,7 @@ router.delete(
 router.post(
     '/:encuestaId/enviar',
     auth,
-    isAdminGerenteOrOrganizador,
+    isAdminGerenteOrganizadorOrPonente,
     validarPermiso,
     EncuestaController.enviarEncuesta
 );

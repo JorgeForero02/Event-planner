@@ -91,7 +91,23 @@ const validarPermiso = async (req, res, next) => {
             }
         });
 
-        if (!adminEmpresa) {
+        const ponente = await Ponente.findOne({
+            where: {
+                id_usuario: usuario.id
+            }
+        });
+
+        let ponenteActividad = null;
+        if (encuesta.id_actividad && ponente) {
+            ponenteActividad = await PonenteActividad.findOne({
+                where: {
+                    id_actividad: encuesta.id_actividad,
+                    id_ponente: ponente.id_ponente        
+                }
+            });
+        }
+
+        if (!adminEmpresa && !ponenteActividad) {
             return res.status(403).json({
                 success: false,
                 message: 'No tienes permiso para acceder a esta encuesta (pertenece a otra empresa).'
