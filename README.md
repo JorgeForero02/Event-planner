@@ -105,16 +105,6 @@ npm start
 
 El servidor estará disponible en: `http://localhost:3000` 
 
-## Documentación de la API
-
-Una vez iniciado el servidor, la documentación interactiva de Swagger estará disponible en:
-
-````bash
-http://localhost:3000/api-docs
-````
-
-También puedes acceder a la especificación JSON en: `http://localhost:3000/api-docs.json`
-
 ## Endpoints Principales
 
 Todos los endpoints están bajo el prefijo `/api`: 
@@ -139,7 +129,7 @@ Todos los endpoints están bajo el prefijo `/api`:
 
 ````Bash
 Event-planner/
-├── config/          # Configuraciones (DB, Swagger)
+├── config/          # Configuraciones
 ├── constants/       # Constantes del sistema
 ├── controllers/     # Lógica de negocio
 ├── cron/           # Tareas programadas
@@ -180,3 +170,4 @@ El sistema incluye:
 - Sistema de recordatorios programados para eventos
 - Notificaciones personalizadas por tipo
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/JorgeForero02/Event-planner)
