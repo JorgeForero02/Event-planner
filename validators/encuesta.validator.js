@@ -1,10 +1,10 @@
-const { Encuesta, Evento, Actividad, AdministradorEmpresa } = require('../models');
+const { Encuesta, Evento, Actividad, AdministradorEmpresa, PonenteActividad } = require('../models');
 
 const validarPermisoLecturaEncuestas = async (req, res, next) => {
     try {
         const usuario = req.usuario;
 
-       
+
         if (usuario.rol === 'Administrador' || usuario.rol === 'administrador') {
             return next();
         }
@@ -98,7 +98,7 @@ const validarPermiso = async (req, res, next) => {
             });
         }
 
-        req.encuesta = encuesta; 
+        req.encuesta = encuesta;
         req.adminEmpresa = adminEmpresa;
         next();
 
@@ -117,9 +117,9 @@ const validarPermisoCreacionEncuesta = async (req, res, next) => {
         const usuario = req.usuario;
 
         if (!id_evento) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'El id_evento es obligatorio para crear una encuesta.' 
+            return res.status(400).json({
+                success: false,
+                message: 'El id_evento es obligatorio para crear una encuesta.'
             });
         }
 
@@ -134,25 +134,31 @@ const validarPermisoCreacionEncuesta = async (req, res, next) => {
                 return res.status(404).json({ success: false, message: 'La actividad especificada no existe.' });
             }
             if (actividad.id_evento != id_evento) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: 'La actividad especificada no pertenece al evento seleccionado.' 
+                return res.status(400).json({
+                    success: false,
+                    message: 'La actividad especificada no pertenece al evento seleccionado.'
                 });
             }
         }
 
         if (usuario.rol !== 'Administrador' && usuario.rol !== 'administrador') {
             const adminEmpresa = await AdministradorEmpresa.findOne({
-                where: { 
+                where: {
                     id_usuario: usuario.id,
-                    id_empresa: evento.id_empresa 
+                    id_empresa: evento.id_empresa
                 }
             });
-
-            if (!adminEmpresa) {
+            
+            const ponente = await PonenteActividad.findOne({
+                where: {
+                    id_actividad: id_actividad,
+                    id_ponente: usuario.id_ponente
+                }
+            });
+            if (!adminEmpresa && !ponente) {
                 return res.status(403).json({
                     success: false,
-                    message: 'No tienes permiso para crear encuestas en este evento (pertenece a otra empresa).'
+                    message: 'No tienes permiso para crear encuestas en este evento (pertenece a otra empresa o no eres ponente de la actividad).'
                 });
             }
         }
@@ -168,5 +174,5 @@ const validarPermisoCreacionEncuesta = async (req, res, next) => {
 module.exports = {
     validarPermisoLecturaEncuestas,
     validarPermiso,
-    validarPermisoCreacionEncuesta 
+    validarPermisoCreacionEncuesta
 };
