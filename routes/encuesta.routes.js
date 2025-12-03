@@ -31,7 +31,7 @@ router.get(
 router.put(
     '/:encuestaId',
     auth,
-    isAdminGerenteOrOrganizador,
+    isAdminGerenteOrganizadorOrPonente,
     validarPermiso,
     EncuestaController.actualizarEncuesta
 );
@@ -39,7 +39,7 @@ router.put(
 router.delete(
     '/:encuestaId',
     auth,
-    isAdminGerenteOrOrganizador,
+    isAdminGerenteOrganizadorOrPonente,
     validarPermiso,
     EncuestaController.eliminarEncuesta
 );
@@ -55,7 +55,7 @@ router.post(
 router.get(
     '/:encuestaId/estadisticas',
     auth,
-    isAdminGerenteOrOrganizador,
+    isAdminGerenteOrganizadorOrPonente,
     validarPermiso,
     EncuestaController.obtenerEstadisticas
 );
