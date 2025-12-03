@@ -165,6 +165,15 @@ const validarPermisoCreacionEncuesta = async (req, res, next) => {
                 }
             });
 
+            if (!adminEmpresa) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'No tienes permiso para crear encuestas en este evento (pertenece a otra empresa o no eres ponente de la actividad).'
+                });
+            }
+        }
+
+        if (usuario.rol === 'Ponente' || usuario.rol === 'ponente') {
             const ponente = await Ponente.findOne({
                 where: {
                     id_usuario: usuario.id
@@ -177,11 +186,11 @@ const validarPermisoCreacionEncuesta = async (req, res, next) => {
                     id_ponente: ponente.id_ponente        
                 }
             });
-
-            if (!adminEmpresa && !ponenteActividad) {
+        
+            if (!ponenteActividad) {
                 return res.status(403).json({
                     success: false,
-                    message: 'No tienes permiso para crear encuestas en este evento (pertenece a otra empresa o no eres ponente de la actividad).'
+                    message: 'No tienes permiso para crear encuestas en esta actividad (no eres ponente de la actividad).'
                 });
             }
         }
