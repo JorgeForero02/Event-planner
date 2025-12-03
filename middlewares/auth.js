@@ -127,6 +127,17 @@ const isOrganizadorOGerente = async (req, res, next) => {
     next();
 };
 
+const isAdminGerenteOrganizadorOrPonente = async (req, res, next) => {
+    const rolesPermitidos = ['administrador', 'gerente', 'organizador', 'ponente'];
+    if (!rolesPermitidos.includes(req.usuario.rol)) {
+        return res.status(403).json({
+            success: false,
+            message: 'Acceso denegado. Se requiere rol de administrador, gerente, organizador o ponente'
+        });
+    }
+    next();
+};
+
 module.exports = {
     auth,
     isAdministrador,
@@ -138,5 +149,6 @@ module.exports = {
     isGerenteOrAdmin,
     isAdminGerenteOrOrganizador,
     isAsistenteAdministrador,
-    isOrganizadorOGerente
+    isOrganizadorOGerente,
+    isAdminGerenteOrganizadorOrPonente
 };

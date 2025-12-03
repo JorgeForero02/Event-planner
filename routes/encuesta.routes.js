@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const EncuestaController = require('../controllers/encuesta.controller');
-const { auth, isAdminGerenteOrOrganizador } = require('../middlewares/auth');
+const { auth, isAdminGerenteOrOrganizador, isAdminGerenteOrganizadorOrPonente } = require('../middlewares/auth');
 const { 
     validarPermisoLecturaEncuestas, 
     validarPermiso,
@@ -10,7 +10,7 @@ const {
 router.post(
     '/',
     auth,
-    isAdminGerenteOrOrganizador,
+    isAdminGerenteOrganizadorOrPonente,
     validarPermisoCreacionEncuesta,
     EncuestaController.crearEncuesta
 );
