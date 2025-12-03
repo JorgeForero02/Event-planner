@@ -152,7 +152,7 @@ const validarPermisoCreacionEncuesta = async (req, res, next) => {
             const ponente = await PonenteActividad.findOne({
                 where: {
                     id_actividad: id_actividad,
-                    id_ponente: usuario.id_ponente
+                    id_ponente: usuario.id
                 }
             });
             if (!adminEmpresa && !ponente) {
