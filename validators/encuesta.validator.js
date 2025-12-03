@@ -1,4 +1,4 @@
-const { Encuesta, Evento, Actividad, AdministradorEmpresa, PonenteActividad } = require('../models');
+const { Encuesta, Evento, Actividad, AdministradorEmpresa, PonenteActividad, Ponente } = require('../models');
 
 const validarPermisoLecturaEncuestas = async (req, res, next) => {
     try {
@@ -148,17 +148,21 @@ const validarPermisoCreacionEncuesta = async (req, res, next) => {
                     id_empresa: evento.id_empresa
                 }
             });
+
+            const ponente = await Ponente.findOne({
+                where: {
+                    id_usuario: usuario.id
+                }
+            });
             
-            const ponente = await PonenteActividad.findOne({
+            const ponenteActividad = await PonenteActividad.findOne({
                 where: {
                     id_actividad: id_actividad,
-                    id_ponente: usuario.id
+                    id_ponente: ponente.id_ponente        
                 }
             });
 
-            console.log(ponente);
-
-            if (!adminEmpresa && !ponente) {
+            if (!adminEmpresa && !ponenteActividad) {
                 return res.status(403).json({
                     success: false,
                     message: 'No tienes permiso para crear encuestas en este evento (pertenece a otra empresa o no eres ponente de la actividad).'
