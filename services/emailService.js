@@ -1,6 +1,73 @@
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Build a flexible transporter for mass sending (pooling) and provider-agnostic SMTP
+const buildTransporter = () => {
+    const {
+        SMTP_HOST,
+        SMTP_PORT,
+        SMTP_SECURE,
+        EMAIL_SERVICE,
+        EMAIL_USER,
+        EMAIL_PASSWORD,
+    } = process.env;
+
+    const useHostConfig = Boolean(SMTP_HOST);
+
+    /**
+     * Pooling greatly improves reliability for mass sends and avoids rate limits.
+     * Defaults target Gmail SMTP if nothing provided.
+     */
+    const base = {
+        pool: true,
+        maxConnections: parseInt(process.env.SMTP_MAX_CONNECTIONS || '5', 10),
+        maxMessages: parseInt(process.env.SMTP_MAX_MESSAGES || '100', 10),
+        rateDelta: parseInt(process.env.SMTP_RATE_DELTA || '1000', 10), // ms window
+        rateLimit: parseInt(process.env.SMTP_RATE_LIMIT || '5', 10),    // msgs per window
+        connectionTimeout: parseInt(process.env.SMTP_CONN_TIMEOUT || '20000', 10),
+        greetingTimeout: parseInt(process.env.SMTP_GREET_TIMEOUT || '10000', 10),
+        auth: {
+            user: EMAIL_USER,
+            pass: EMAIL_PASSWORD
+        },
+        tls: {
+            // Allow self-signed if needed; keep configurable via env
+            rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED === 'true'
+                ? true
+                : (process.env.SMTP_REJECT_UNAUTHORIZED === 'false' ? false : false)
+        }
+    };
+
+    if (useHostConfig) {
+        return nodemailer.createTransport({
+            ...base,
+            host: SMTP_HOST,
+            port: SMTP_PORT ? parseInt(SMTP_PORT, 10) : 465,
+            secure: SMTP_SECURE ? SMTP_SECURE === 'true' : true
+        });
+    }
+
+    if (EMAIL_SERVICE || true) {
+        // Default to Gmail service if nothing else provided
+        return nodemailer.createTransport({
+            ...base,
+            service: EMAIL_SERVICE || 'gmail',
+        });
+    }
+};
+
+const transporter = buildTransporter();
+
+// Verify transporter on startup to surface misconfiguration early
+(async () => {
+    try {
+        await transporter.verify();
+        console.log('[EmailService] SMTP transporter verificado correctamente');
+    } catch (e) {
+        console.error('[EmailService] Error verificando SMTP transporter:', e?.message || e);
+    }
+})();
+
 const EmailService = {
     enviarBienvenida: async (destinatario, nombre, rol) => {
         try {
