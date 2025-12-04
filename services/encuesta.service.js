@@ -227,6 +227,17 @@ class EncuestaService {
             }));
 
             console.log(`Asistentes a enviar encuesta: ${asistentes.length}`);
+            // Log detallado de destinatarios
+            if (asistentes.length > 0) {
+                const correos = asistentes.map(a => a.correo).filter(Boolean);
+                console.log('Correos destinatarios (primeros 20):', correos.slice(0, 20));
+                const vacios = asistentes.filter(a => !a.correo);
+                if (vacios.length > 0) {
+                    console.warn(`Asistentes sin correo: ${vacios.length}`);
+                }
+            } else {
+                console.warn('No se encontraron asistentes con inscripciones válidas para el evento.');
+            }
         } else {
             console.log('No se encontró evento asociado a la encuesta');
         }
@@ -246,6 +257,9 @@ class EncuestaService {
         }
 
         console.log(`Total de envíos preparados: ${envios.length}`);
+        if (envios.length > 0) {
+            console.log('Primeros 10 envíos preparados:', envios.slice(0, 10).map(e => ({ correo: e.asistente.correo, nombre: e.asistente.nombre })));
+        }
 
         return envios;
     }
