@@ -1,4 +1,4 @@
-const { PonenteActividad, Ponente, Actividad, Usuario, Evento } = require('../models');
+const { PonenteActividad, Ponente, Actividad, Usuario, Evento, Lugar, Ubicacion } = require('../models');
 const { MENSAJES } = require('../constants/ponenteActividad.constants');
 const NotificacionService = require('./notificacion.service');
 const EmailService = require('./emailService');
@@ -126,6 +126,19 @@ class PonenteActividadService {
                         model: Evento,
                         as: 'evento',
                         attributes: ['id', 'titulo', 'id_empresa']
+                    }]
+                },
+                {
+                    model: Actividad,
+                    as: 'actividad',
+                    include: [{
+                        model: Lugar,
+                        as: 'lugares',
+                        include: [{
+                            model: Ubicacion,
+                            as: 'ubicacion'
+                        }],
+                        through: { attributes: [] }
                     }]
                 }
             ],
