@@ -308,6 +308,21 @@ class EncuestaService {
         };
     }
 
+    async obtenerRespuestasEncuestaAsistentes(asistente) {
+        const respuestas = await RespuestaEncuesta.findAll({
+            where: {
+                id_asistente: asistente
+            },
+            include: [{
+                model: Encuesta,
+                as: 'encuesta',
+                attributes: ['id', 'titulo', 'tipo_encuesta', 'momento', 'url_google_form', 'estado']
+            }]
+        });
+        return respuestas;
+    }
+
+
     _construirActualizaciones(datos) {
         const camposPermitidos = [
             'titulo',

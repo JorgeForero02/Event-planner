@@ -1,7 +1,7 @@
 const EncuestaService = require('../services/encuesta.service');
 const AuditoriaService = require('../services/auditoriaService');
 const EmailService = require('../services/emailService');
-const { Asistente, Evento, Actividad, Ponente, PonenteActividad } = require('../models');
+const { Asistente, Evento, Actividad, Ponente, PonenteActividad, RespuestaEncuesta } = require('../models');
 const { MENSAJES, CODIGOS_HTTP } = require('../constants/encuesta.constants');
 
 class EncuestaController {
@@ -375,6 +375,61 @@ class EncuestaController {
             });
         } catch (error) {
             console.error('Error al obtener estadísticas:', error);
+            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
+                success: false,
+                message: MENSAJES.ERROR_OBTENER,
+                error: error.message
+            });
+        }
+    }
+
+    async obtenerRespuestasEncuestaAsistentes(req, res) {
+        try {
+            const { encuesta_id} = req.query;
+            const usuario = req.usuario;
+            let asistente = null;
+            if (usuario.rol === 'Asistente' || usuario.rol === 'asistente') {
+                asistente = await Asistente.findOne({
+                    where: { id_usuario: usuario.id }
+                });
+            } 
+            if (!asistente) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Acceso denegado. Solo asistentes pueden acceder a sus respuestas de encuestas.'
+                });
+            }
+
+            if (encuesta_id) {
+                const encuesta = await EncuestaService.buscarPorId(encuesta_id);
+                if (!encuesta) {
+                    return res.status(404).json({
+                        success: false, 
+                        message: 'Encuesta no encontrada.'
+                    });
+                }
+            }
+
+            const respuestas = await EncuestaService.obtenerRespuestasEncuestaAsistentes(asistente.id_asistente);
+            const respuestaPorEncuesta = respuestas.filter(r => r.id_encuesta == encuesta_id);
+
+            if (encuesta_id){
+                return res.json({
+                    success: true,
+                    message: MENSAJES.LISTA_OBTENIDA,
+                    data: respuestaPorEncuesta[0] || null
+                });
+            }
+
+            return res.json({
+                success: true,
+                message: MENSAJES.LISTA_OBTENIDA,
+                total: respuestas.length,
+                data: respuestas
+            });
+
+        } catch (error) {
+            console.error('Error al obtener respuestas de encuesta:', error);
             return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
                 success: false,
                 message: MENSAJES.ERROR_OBTENER,
