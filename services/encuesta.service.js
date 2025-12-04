@@ -58,6 +58,39 @@ class EncuestaService {
                 { model: Evento, as: 'evento', attributes: ['id', 'titulo', 'fecha_inicio', 'fecha_fin'] },
                 { model: Actividad, as: 'actividad', attributes: ['id_actividad', 'titulo', 'fecha_actividad', 'hora_inicio', 'hora_fin'] }
             ]
+            } else if (encuesta.id_actividad) {
+            // Si la encuesta está asociada a una actividad, obtenemos el evento de esa actividad
+            const actividad = await Actividad.findByPk(encuesta.id_actividad, {
+                include: [{ model: Evento, as: 'evento', attributes: ['id'] }]
+            });
+
+            if (!actividad || !actividad.evento) {
+                throw new Error('Actividad o evento asociado no encontrado');
+            }
+
+            const inscripciones = await Inscripcion.findAll({
+                where: {
+                    id_evento: actividad.evento.id,
+                    estado: { [Op.in]: ['Confirmada', 'Pendiente'] }
+                },
+                include: [{
+                    model: Asistente,
+                    as: 'asistente',
+                    required: true,
+                    include: [{
+                        model: Usuario,
+                        as: 'usuario',
+                        attributes: ['id', 'nombre', 'correo'],
+                        required: true
+                    }]
+                }]
+            });
+
+            asistentes = inscripciones.map(i => ({
+                id: i.asistente.id_asistente,
+                nombre: i.asistente.usuario.nombre,
+                correo: i.asistente.usuario.correo
+            }));
         });
     }
 
