@@ -1,6 +1,6 @@
 const { Encuesta, RespuestaEncuesta, Evento, Actividad, Inscripcion, Asistente, Usuario } = require('../models');
 const { Op } = require('sequelize');
-const { ESTADOS_ENCUESTA, ESTADOS_RESPUESTA } = require('../constants/encuesta. constants');
+const { ESTADOS_ENCUESTA, ESTADOS_RESPUESTA } = require('../constants/encuesta.constants');
 
 class EncuestaService {
     crearTransaccion() {
@@ -10,7 +10,7 @@ class EncuestaService {
     construirURLConParametros(urlBase, parametros) {
         const url = new URL(urlBase);
         Object.keys(parametros).forEach(key => {
-            url. searchParams.append(key, parametros[key]);
+            url.searchParams.append(key, parametros[key]);
         });
         return url.toString();
     }
