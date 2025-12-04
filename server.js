@@ -17,7 +17,7 @@ setupSwagger(app);
 app.use(helmet());
 
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  origin: process.env.FRONTEND_URL || 'https://event-planner.up.railway.app',
   credentials: true
 };
 app.use(cors(corsOptions));
