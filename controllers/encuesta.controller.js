@@ -278,30 +278,29 @@ class EncuestaController {
         try {
             const { encuestaId } = req.params;
             const usuario = req.usuario;
-    
-            const envios = await EncuestaService. enviarEncuestasMasivas(
+            const envios = await EncuestaService.enviarEncuestasMasivas(
                 encuestaId,
                 transaction
             );
-    
+
             await transaction.commit();
-    
+
             // Enviar emails EN PARALELO (mucho más rápido)
             let emailsEnviados = 0;
             let emailsFallidos = 0;
             const erroresEmail = [];
-    
+
             if (envios.length > 0) {
                 const resultadosEmail = await Promise.allSettled(
-                    envios. map(envio => 
+                    envios.map(envio =>
                         EmailService.enviarEncuesta(
-                            envio. asistente.correo,
+                            envio.asistente.correo,
                             envio.asistente.nombre,
-                            envio. url
+                            envio.url
                         )
                     )
                 );
-    
+
                 resultadosEmail.forEach((resultado, index) => {
                     if (resultado.status === 'fulfilled') {
                         emailsEnviados++;
@@ -309,16 +308,16 @@ class EncuestaController {
                         emailsFallidos++;
                         erroresEmail.push({
                             asistente: envios[index].asistente.correo,
-                            error: resultado.reason?. message || 'Error desconocido'
+                            error: resultado.reason?.message || 'Error desconocido'
                         });
-                        console.error(`Error enviando email a ${envios[index].asistente. correo}:`, resultado.reason);
+                        console.error(`Error enviando email a ${envios[index].asistente.correo}:`, resultado.reason);
                     }
                 });
             }
-    
+
             return res.json({
                 success: true,
-                message: MENSAJES. ENVIADA,
+                message: MENSAJES.ENVIADA,
                 data: {
                     total_registrados: envios.length,
                     emails_enviados: emailsEnviados,
@@ -333,7 +332,7 @@ class EncuestaController {
             return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
                 success: false,
                 message: MENSAJES.ERROR_ENVIAR,
-                error: error. message
+                error: error.message
             });
         }
     }
