@@ -174,17 +174,20 @@ class EncuestaService {
 
     async enviarEncuestasMasivas(encuestaId, transaction) {
         const encuesta = await this.buscarPorId(encuestaId);
-
+    
         if (!encuesta) {
             throw new Error('Encuesta no encontrada');
         }
-
+    
         let asistentes = [];
         let eventoId = null;
-
-        // Determinar el evento asociado (directamente o a través de la actividad)
+    
+        // ✅ CORRECCIÓN: Obtener eventoId desde el campo directo o desde la relación
         if (encuesta. id_evento) {
             eventoId = encuesta.id_evento;
+        } else if (encuesta.evento && encuesta.evento.id) {
+            // Usar la relación incluida si el campo directo no está disponible
+            eventoId = encuesta.evento.id;
         } else if (encuesta.id_actividad) {
             // Si la encuesta es de una actividad, obtener el evento de esa actividad
             const actividad = await Actividad.findByPk(encuesta.id_actividad, {
@@ -195,7 +198,7 @@ class EncuestaService {
                 eventoId = actividad.id_evento;
             }
         }
-
+    
         // Buscar asistentes inscritos en el evento
         if (eventoId) {
             console.log(`Buscando asistentes para evento ID: ${eventoId}`);
@@ -217,20 +220,20 @@ class EncuestaService {
                     }]
                 }]
             });
-
+    
             console.log(`Inscripciones encontradas: ${inscripciones.length}`);
-
-            asistentes = inscripciones.map(i => ({
+    
+            asistentes = inscripciones. map(i => ({
                 id: i.asistente.id_asistente,
-                nombre: i.asistente.usuario.nombre,
-                correo: i.asistente.usuario.correo
+                nombre: i. asistente.usuario.nombre,
+                correo: i. asistente.usuario.correo
             }));
-
+    
             console.log(`Asistentes a enviar encuesta: ${asistentes.length}`);
         } else {
             console.log('No se encontró evento asociado a la encuesta');
         }
-
+    
         const envios = [];
         for (const asistente of asistentes) {
             const resultado = await this.enviarEncuestaAsistente(
@@ -238,18 +241,17 @@ class EncuestaService {
                 asistente. id,
                 transaction
             );
-
+    
             envios.push({
                 asistente,
                 url: resultado.url_personalizada
             });
         }
-
+    
         console.log(`Total de envíos preparados: ${envios.length}`);
-
+    
         return envios;
     }
-
     async marcarComoCompletada(encuestaId, asistenteId) {
         const respuesta = await RespuestaEncuesta. findOne({
             where: {
