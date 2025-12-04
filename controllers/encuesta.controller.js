@@ -385,6 +385,7 @@ class EncuestaController {
 
     async obtenerRespuestasEncuestaAsistentes(req, res) {
         try {
+            const { encuesta_id} = req.query;
             const usuario = req.usuario;
             let asistente = null;
             if (usuario.rol === 'Asistente' || usuario.rol === 'asistente') {
@@ -392,8 +393,33 @@ class EncuestaController {
                     where: { id_usuario: usuario.id }
                 });
             } 
-            console.log('Asistente encontrado:', asistente);
+            if (!asistente) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Acceso denegado. Solo asistentes pueden acceder a sus respuestas de encuestas.'
+                });
+            }
+
+            if (encuesta_id) {
+                const encuesta = await EncuestaService.buscarPorId(encuesta_id);
+                if (!encuesta) {
+                    return res.status(404).json({
+                        success: false, 
+                        message: 'Encuesta no encontrada.'
+                    });
+                }
+            }
+
             const respuestas = await EncuestaService.obtenerRespuestasEncuestaAsistentes(asistente.id_asistente);
+            const respuestaPorEncuesta = respuestas.filter(r => r.id_encuesta == encuesta_id);
+
+            if (encuesta_id){
+                return res.json({
+                    success: true,
+                    message: MENSAJES.LISTA_OBTENIDA,
+                    data: respuestaPorEncuesta[0] || null
+                });
+            }
 
             return res.json({
                 success: true,
