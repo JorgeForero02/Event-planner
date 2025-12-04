@@ -157,7 +157,7 @@ const validarPermisoCreacionEncuesta = async (req, res, next) => {
             }
         }
 
-        if (usuario.rol !== 'Administrador' && usuario.rol !== 'administrador') {
+        if (usuario.rol !== 'Administrador' && usuario.rol !== 'administrador' && usuario.rol !== 'Ponente' && usuario.rol !== 'ponente') {
             const adminEmpresa = await AdministradorEmpresa.findOne({
                 where: {
                     id_usuario: usuario.id,
