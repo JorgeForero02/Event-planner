@@ -53,6 +53,7 @@ class EncuestaController {
             const usuario = req.usuario;
 
             console.log('Usuario en obtenerEncuestas:', usuario);
+            console.log(adminEmpresa);
 
             if (adminEmpresa) {
                 const idEmpresaUsuario = adminEmpresa.id_empresa;
@@ -80,7 +81,7 @@ class EncuestaController {
                 }
             }
 
-            if (ponente_id) {
+            if (ponente_id != null) {
                 if (usuario.rol !== 'Ponente' && usuario.rol !== 'ponente') {
                     return res.status(403).json({
                         success: false,
