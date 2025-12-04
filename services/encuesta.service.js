@@ -1,6 +1,6 @@
 const { Encuesta, RespuestaEncuesta, Evento, Actividad, Inscripcion, Asistente, Usuario } = require('../models');
 const { Op } = require('sequelize');
-const { ESTADOS_ENCUESTA, ESTADOS_RESPUESTA } = require('../constants/encuesta.constants');
+const { ESTADOS_ENCUESTA, ESTADOS_RESPUESTA } = require('../constants/encuesta. constants');
 
 class EncuestaService {
     crearTransaccion() {
@@ -10,7 +10,7 @@ class EncuestaService {
     construirURLConParametros(urlBase, parametros) {
         const url = new URL(urlBase);
         Object.keys(parametros).forEach(key => {
-            url.searchParams.append(key, parametros[key]);
+            url. searchParams.append(key, parametros[key]);
         });
         return url.toString();
     }
@@ -40,7 +40,7 @@ class EncuestaService {
     async eliminar(encuestaId, transaction) {
         const encuesta = await Encuesta.findByPk(encuestaId);
 
-        if (!encuesta) {
+        if (! encuesta) {
             throw new Error('Encuesta no encontrada');
         }
 
@@ -53,7 +53,7 @@ class EncuestaService {
     }
 
     async buscarPorId(encuestaId) {
-        return await Encuesta.findByPk(encuestaId, {
+        return await Encuesta. findByPk(encuestaId, {
             include: [
                 { model: Evento, as: 'evento', attributes: ['id', 'titulo', 'fecha_inicio', 'fecha_fin'] },
                 { model: Actividad, as: 'actividad', attributes: ['id_actividad', 'titulo', 'fecha_actividad', 'hora_inicio', 'hora_fin'] }
@@ -82,7 +82,7 @@ class EncuestaService {
     }
 
     async obtenerPorPonente(listaActividadId) {
-        return await Encuesta.findAll({
+        return await Encuesta. findAll({
             where: {
                 id_actividad: { [Op.in]: listaActividadId }
             },
@@ -105,6 +105,7 @@ class EncuestaService {
             order: [['fecha_creacion', 'DESC']]
         });
     }
+
     async obtenerPorPonenteActividad(actividadId) {
         return await Encuesta.findAll({
             where: {
@@ -118,18 +119,18 @@ class EncuestaService {
     }
 
     async obtenerEncuestasActivas(filtros = {}) {
-        const where = { estado: ESTADOS_ENCUESTA.ACTIVA };
-        const fechaHoy = new Date().toISOString().split('T')[0];
+        const where = { estado: ESTADOS_ENCUESTA. ACTIVA };
+        const fechaHoy = new Date(). toISOString(). split('T')[0];
 
         where.fecha_inicio = { [Op.lte]: fechaHoy };
         where[Op.or] = [
             { fecha_fin: null },
-            { fecha_fin: { [Op.gte]: fechaHoy } }
+            { fecha_fin: { [Op. gte]: fechaHoy } }
         ];
 
         if (filtros.id_evento) where.id_evento = filtros.id_evento;
         if (filtros.id_actividad) where.id_actividad = filtros.id_actividad;
-        if (filtros.tipo_encuesta) where.tipo_encuesta = filtros.tipo_encuesta;
+        if (filtros.tipo_encuesta) where. tipo_encuesta = filtros.tipo_encuesta;
 
         return await Encuesta.findAll({
             where,
@@ -154,11 +155,11 @@ class EncuestaService {
         if (yaEnviada) {
             return {
                 respuesta: yaEnviada,
-                url_personalizada: encuesta.url_google_form
+                url_personalizada: encuesta. url_google_form
             };
         }
 
-        const respuesta = await RespuestaEncuesta.create({
+        const respuesta = await RespuestaEncuesta. create({
             id_encuesta: encuestaId,
             id_asistente: asistenteId,
             estado: ESTADOS_RESPUESTA.PENDIENTE,
@@ -167,7 +168,7 @@ class EncuestaService {
 
         return {
             respuesta,
-            url_personalizada: encuesta.url_google_form
+            url_personalizada: encuesta. url_google_form
         };
     }
 
@@ -179,11 +180,29 @@ class EncuestaService {
         }
 
         let asistentes = [];
+        let eventoId = null;
 
-        if (encuesta.id_evento) {
-            const inscripciones = await Inscripcion.findAll({
+        // Determinar el evento asociado (directamente o a través de la actividad)
+        if (encuesta. id_evento) {
+            eventoId = encuesta.id_evento;
+        } else if (encuesta.id_actividad) {
+            // Si la encuesta es de una actividad, obtener el evento de esa actividad
+            const actividad = await Actividad.findByPk(encuesta.id_actividad, {
+                attributes: ['id_actividad', 'id_evento']
+            });
+            
+            if (actividad && actividad.id_evento) {
+                eventoId = actividad.id_evento;
+            }
+        }
+
+        // Buscar asistentes inscritos en el evento
+        if (eventoId) {
+            console.log(`Buscando asistentes para evento ID: ${eventoId}`);
+            
+            const inscripciones = await Inscripcion. findAll({
                 where: {
-                    id_evento: encuesta.id_evento,
+                    id_evento: eventoId,
                     estado: { [Op.in]: ['Confirmada', 'Pendiente'] }
                 },
                 include: [{
@@ -199,18 +218,24 @@ class EncuestaService {
                 }]
             });
 
+            console.log(`Inscripciones encontradas: ${inscripciones.length}`);
+
             asistentes = inscripciones.map(i => ({
                 id: i.asistente.id_asistente,
                 nombre: i.asistente.usuario.nombre,
                 correo: i.asistente.usuario.correo
             }));
+
+            console.log(`Asistentes a enviar encuesta: ${asistentes.length}`);
+        } else {
+            console.log('No se encontró evento asociado a la encuesta');
         }
 
         const envios = [];
         for (const asistente of asistentes) {
             const resultado = await this.enviarEncuestaAsistente(
                 encuestaId,
-                asistente.id,
+                asistente. id,
                 transaction
             );
 
@@ -220,18 +245,20 @@ class EncuestaService {
             });
         }
 
+        console.log(`Total de envíos preparados: ${envios.length}`);
+
         return envios;
     }
 
     async marcarComoCompletada(encuestaId, asistenteId) {
-        const respuesta = await RespuestaEncuesta.findOne({
+        const respuesta = await RespuestaEncuesta. findOne({
             where: {
                 id_encuesta: encuestaId,
                 id_asistente: asistenteId
             }
         });
 
-        if (!respuesta) {
+        if (! respuesta) {
             throw new Error('No registrado en esta encuesta');
         }
 
@@ -276,7 +303,7 @@ class EncuestaService {
             ? ((totalCompletadas / totalEnviadas) * 100).toFixed(2)
             : 0;
 
-        const respuestas = await RespuestaEncuesta.findAll({
+        const respuestas = await RespuestaEncuesta. findAll({
             where: { id_encuesta: encuestaId },
             include: [{
                 model: Asistente,
@@ -291,7 +318,7 @@ class EncuestaService {
         });
 
         return {
-            encuesta: encuesta.toJSON(),
+            encuesta: encuesta. toJSON(),
             estadisticas: {
                 total_enviadas: totalEnviadas,
                 total_completadas: totalCompletadas,
@@ -300,7 +327,7 @@ class EncuestaService {
             },
             respuestas: respuestas.map(r => ({
                 id: r.id,
-                asistente: r.asistente?.usuario || null,
+                asistente: r. asistente?. usuario || null,
                 estado: r.estado,
                 fecha_envio: r.fecha_envio,
                 fecha_completado: r.fecha_completado
@@ -338,7 +365,7 @@ class EncuestaService {
         ];
 
         const actualizaciones = {};
-        camposPermitidos.forEach(campo => {
+        camposPermitidos. forEach(campo => {
             if (datos[campo] !== undefined) {
                 actualizaciones[campo] = datos[campo];
             }
