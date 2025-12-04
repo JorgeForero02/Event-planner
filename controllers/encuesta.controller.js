@@ -1,7 +1,7 @@
 const EncuestaService = require('../services/encuesta.service');
 const AuditoriaService = require('../services/auditoriaService');
 const EmailService = require('../services/emailService');
-const { Asistente, Evento, Actividad, Ponente, PonenteActividad } = require('../models');
+const { Asistente, Evento, Actividad, Ponente, PonenteActividad, RespuestaEncuesta } = require('../models');
 const { MENSAJES, CODIGOS_HTTP } = require('../constants/encuesta.constants');
 
 class EncuestaController {
@@ -375,6 +375,35 @@ class EncuestaController {
             });
         } catch (error) {
             console.error('Error al obtener estadísticas:', error);
+            return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
+                success: false,
+                message: MENSAJES.ERROR_OBTENER,
+                error: error.message
+            });
+        }
+    }
+
+    async obtenerRespuestasEncuestaAsistentes(req, res) {
+        try {
+            const usuario = req.usuario;
+            let asistente = null;
+            if (usuario.rol === 'Asistente' || usuario.rol === 'asistente') {
+                asistente = await Asistente.findOne({
+                    where: { id_usuario: usuario.id }
+                });
+            } 
+            console.log('Asistente encontrado:', asistente);
+            const respuestas = await EncuestaService.obtenerRespuestasEncuestaAsistentes(asistente.id_asistente);
+
+            return res.json({
+                success: true,
+                message: MENSAJES.LISTA_OBTENIDA,
+                total: respuestas.length,
+                data: respuestas
+            });
+
+        } catch (error) {
+            console.error('Error al obtener respuestas de encuesta:', error);
             return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
                 success: false,
                 message: MENSAJES.ERROR_OBTENER,

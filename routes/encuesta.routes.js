@@ -60,6 +60,12 @@ router.get(
     EncuestaController.obtenerEstadisticas
 );
 
+router.get(
+    '/respuestas/asistentes',
+    auth,
+    EncuestaController.obtenerRespuestasEncuestaAsistentes
+);
+
 router.post(
     '/completar',
     auth,
