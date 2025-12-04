@@ -278,34 +278,53 @@ class EncuestaController {
         try {
             const { encuestaId } = req.params;
             const usuario = req.usuario;
-
-            const envios = await EncuestaService.enviarEncuestasMasivas(
+    
+            const envios = await EncuestaService. enviarEncuestasMasivas(
                 encuestaId,
                 transaction
             );
-
-            transaction.afterCommit(async () => {
-                try {
-                    for (const envio of envios) {
-                        await EmailService.enviarEncuesta(
-                            envio.asistente.correo,
-                            envio.asistente.nombre,
-                            envio.url
-                        );
-                    }
-                } catch (emailError) {
-                    console.error('Error al enviar emails de encuesta:', emailError);
-                }
-            });
-
+    
             await transaction.commit();
-
+    
+            // Enviar emails EN PARALELO (mucho más rápido)
+            let emailsEnviados = 0;
+            let emailsFallidos = 0;
+            const erroresEmail = [];
+    
+            if (envios.length > 0) {
+                const resultadosEmail = await Promise.allSettled(
+                    envios. map(envio => 
+                        EmailService.enviarEncuesta(
+                            envio. asistente.correo,
+                            envio.asistente.nombre,
+                            envio. url
+                        )
+                    )
+                );
+    
+                resultadosEmail.forEach((resultado, index) => {
+                    if (resultado.status === 'fulfilled') {
+                        emailsEnviados++;
+                    } else {
+                        emailsFallidos++;
+                        erroresEmail.push({
+                            asistente: envios[index].asistente.correo,
+                            error: resultado.reason?. message || 'Error desconocido'
+                        });
+                        console.error(`Error enviando email a ${envios[index].asistente. correo}:`, resultado.reason);
+                    }
+                });
+            }
+    
             return res.json({
                 success: true,
-                message: MENSAJES.ENVIADA,
+                message: MENSAJES. ENVIADA,
                 data: {
-                    total_enviadas: envios.length,
-                    asistentes: envios.map(e => e.asistente)
+                    total_registrados: envios.length,
+                    emails_enviados: emailsEnviados,
+                    emails_fallidos: emailsFallidos,
+                    asistentes: envios.map(e => e.asistente),
+                    errores: emailsFallidos > 0 ? erroresEmail : undefined
                 }
             });
         } catch (error) {
@@ -314,7 +333,7 @@ class EncuestaController {
             return res.status(CODIGOS_HTTP.ERROR_INTERNO).json({
                 success: false,
                 message: MENSAJES.ERROR_ENVIAR,
-                error: error.message
+                error: error. message
             });
         }
     }
